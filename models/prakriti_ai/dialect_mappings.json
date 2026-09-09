@@ -1,0 +1,192 @@
+{
+  "te": {
+    "dialect_regions": {
+      "telangana": {
+        "gunde batte pothundi": {
+          "standard_term": "severe chest pain",
+          "clinical_concept": "acute chest pain / angina",
+          "system": "cardiovascular",
+          "red_flag": true,
+          "urgency": "immediate_evaluation"
+        },
+        "chhati lo noppi": {
+          "standard_term": "chest pain",
+          "clinical_concept": "chest discomfort",
+          "system": "cardiovascular"
+        },
+        "thalakay thiruguthundi": {
+          "standard_term": "dizziness",
+          "clinical_concept": "vertigo / lightheadedness",
+          "system": "neurological"
+        },
+        "dhummu pattindi": {
+          "standard_term": "severe cough congestion",
+          "clinical_concept": "productive cough / chest congestion",
+          "system": "respiratory"
+        },
+        "kaallu peekuthunnayi": {
+          "standard_term": "throbbing leg aches",
+          "clinical_concept": "lower extremity myalgia / bone pain",
+          "system": "musculoskeletal"
+        },
+        "ontlo jwaram laaga undi": {
+          "standard_term": "feeling feverish",
+          "clinical_concept": "pyrexia / febrile episode",
+          "system": "general"
+        },
+        "motion aithaledu": {
+          "standard_term": "no bowel movement",
+          "clinical_concept": "constipation / Vibandha",
+          "system": "gastrointestinal",
+          "ayush_parameter": "Koshtha - Krura"
+        }
+      },
+      "rayalaseema": {
+        "kadupulo manta": {
+          "standard_term": "burning sensation in abdomen",
+          "clinical_concept": "epigastric burning / dyspepsia / Amlapitta",
+          "system": "gastrointestinal",
+          "ayush_parameter": "Pitta aggravation / Tikshnagni"
+        },
+        "kallu maathulu pothunnayi": {
+          "standard_term": "vision blackout / fainting",
+          "clinical_concept": "syncope / presyncope",
+          "system": "neurological",
+          "red_flag": true
+        },
+        "dammu vasthondi": {
+          "standard_term": "breathlessness / panting",
+          "clinical_concept": "dyspnea / Shwasa",
+          "system": "respiratory"
+        },
+        "kallu jallumanipothunnayi": {
+          "standard_term": "tingling sensation in eyes/feet",
+          "clinical_concept": "peripheral neuropathy / burning sensations",
+          "system": "neurological"
+        }
+      },
+      "coastal_andhra_godavari": {
+        "aayasam ga undi": {
+          "standard_term": "breathlessness / fatigue",
+          "clinical_concept": "dyspnea on exertion / Shwasa Roga",
+          "system": "respiratory"
+        },
+        "ontlo baaledu": {
+          "standard_term": "unwell / general weakness",
+          "clinical_concept": "general malaise / Daurbalya",
+          "system": "general"
+        },
+        "sarvangam noppulu": {
+          "standard_term": "whole body ache",
+          "clinical_concept": "generalized arthralgia / myalgia / Angamarda",
+          "system": "musculoskeletal",
+          "ayush_parameter": "Vata Prakopa"
+        },
+        "kalla veppulu": {
+          "standard_term": "swelling in feet",
+          "clinical_concept": "bilateral pedal edema / Shotha",
+          "system": "cardiovascular_renal",
+          "red_flag": false
+        },
+        "neellala motion": {
+          "standard_term": "watery loose stools",
+          "clinical_concept": "acute diarrhea / Atisara",
+          "system": "gastrointestinal"
+        },
+        "aakali kavatam ledu": {
+          "standard_term": "loss of appetite",
+          "clinical_concept": "anorexia / Aruchi / Mandagni",
+          "system": "gastrointestinal",
+          "ayush_parameter": "Mandagni"
+        }
+      }
+    }
+  },
+  "hi": {
+    "chhati me jalan": {
+      "standard_term": "burning in chest",
+      "clinical_concept": "heartburn / gastroesophageal reflux / Amlapitta",
+      "system": "gastrointestinal"
+    },
+    "chhati me dard aur ghabrahat": {
+      "standard_term": "chest pain with palpitations",
+      "clinical_concept": "acute angina / palpitations / Hridroga lakshana",
+      "system": "cardiovascular",
+      "red_flag": true
+    },
+    "chakkar aa rahe hai": {
+      "standard_term": "dizziness / vertigo",
+      "clinical_concept": "vertigo / postural dizziness / Bhrama",
+      "system": "neurological"
+    },
+    "saans lene me takleef": {
+      "standard_term": "difficulty breathing",
+      "clinical_concept": "dyspnea / Shwasa",
+      "system": "respiratory",
+      "red_flag": true
+    },
+    "pet me marod": {
+      "standard_term": "cramping abdominal pain",
+      "clinical_concept": "abdominal colic / Shoola",
+      "system": "gastrointestinal"
+    },
+    "bhookh nahi lagti": {
+      "standard_term": "loss of appetite",
+      "clinical_concept": "anorexia / Agnimandya",
+      "system": "gastrointestinal",
+      "ayush_parameter": "Mandagni"
+    },
+    "neend nahi aati": {
+      "standard_term": "sleep disturbance / insomnia",
+      "clinical_concept": "insomnia / Anidra",
+      "system": "psychological",
+      "ayush_parameter": "Vata aggravation"
+    }
+  },
+  "ta": {
+    "nenju vali": {
+      "standard_term": "chest pain",
+      "clinical_concept": "chest discomfort / angina",
+      "system": "cardiovascular",
+      "red_flag": true
+    },
+    "thalai suthal": {
+      "standard_term": "head spinning / dizziness",
+      "clinical_concept": "vertigo / dizziness",
+      "system": "neurological"
+    },
+    "moochu thinaral": {
+      "standard_term": "breathlessness",
+      "clinical_concept": "dyspnea",
+      "system": "respiratory"
+    },
+    "vayiru erichal": {
+      "standard_term": "stomach burning",
+      "clinical_concept": "gastric burning / acid peptic disease",
+      "system": "gastrointestinal"
+    }
+  },
+  "kn": {
+    "ede novu": {
+      "standard_term": "chest pain",
+      "clinical_concept": "angina / chest pain",
+      "system": "cardiovascular",
+      "red_flag": true
+    },
+    "thale suthuvike": {
+      "standard_term": "dizziness",
+      "clinical_concept": "vertigo",
+      "system": "neurological"
+    },
+    "usirata thondare": {
+      "standard_term": "breathing difficulty",
+      "clinical_concept": "dyspnea",
+      "system": "respiratory"
+    },
+    "hotte uritha": {
+      "standard_term": "stomach burning",
+      "clinical_concept": "gastritis / acid peptic",
+      "system": "gastrointestinal"
+    }
+  }
+}

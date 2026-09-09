@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Login – Ministry of Ayush Smart MediKiosk{% endblock %}
+
+{% block content %}
+<div style="max-width: 540px; margin: 2rem auto;">
+  <div class="card-panel">
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <h2 class="section-title">Patient Login</h2>
+      <p class="section-subtitle">Enter your ABHA ID and registered phone number to begin clinical history-taking</p>
+    </div>
+
+    <form method="POST" action="/login">
+      <div class="form-group">
+        <label for="abha_id">Unique ABHA ID (Ayushman Bharat Health Account) *</label>
+        <input 
+          type="text" 
+          id="abha_id" 
+          name="abha_id" 
+          class="form-control" 
+          placeholder="e.g. 14-DIGIT-ABHA or ABHA-101" 
+          value="{{ abha_id or request.args.get('abha_id') or '' }}" 
+          required 
+          autofocus
+        />
+        <div class="form-note">Your unique national health identifier.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="phone_number">Phone Number *</label>
+        <input 
+          type="tel" 
+          id="phone_number" 
+          name="phone_number" 
+          class="form-control" 
+          placeholder="e.g. 9876543210" 
+          value="{{ phone_number or '' }}" 
+          required 
+        />
+        <div class="form-note" style="color: var(--ayush-primary); font-weight: 500;">
+          ℹ️ Multiple family members can use the same phone number.
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 1.15rem; padding: 1rem; margin-top: 0.5rem;">
+        <span>Login & Continue</span> →
+      </button>
+    </form>
+
+    <div style="text-align: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--ayush-border);">
+      <p style="font-size: 1rem; color: var(--ayush-text-muted);">
+        New Patient? 
+        <a href="/register" style="color: var(--ayush-primary); font-weight: 700; text-decoration: none;">
+          Register Here
+        </a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

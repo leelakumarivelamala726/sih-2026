@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Medical Documents – Smart MediKiosk{% endblock %}
+
+{% block extra_head %}
+<!-- Tesseract.js CDN for in-browser client OCR fallback -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="scannerContainer" data-session-id="{{ session.id }}" style="max-width: 980px; margin: 1rem auto;">
+  
+  <div class="patient-info-strip">
+    <div class="patient-meta-group">
+      <div class="meta-item">
+        <span class="meta-label">Patient</span>
+        <span class="meta-value">{{ session.patient_name }}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">ABHA ID</span>
+        <span class="meta-value"><code>{{ session.abha_id }}</code></span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Token</span>
+        <span class="meta-value">{{ session.token_number }}</span>
+      </div>
+    </div>
+    <a href="/prakriti/{{ session.id }}" class="btn btn-secondary" style="font-size: 0.9rem;">
+      ← Back to AI Dialogue
+    </a>
+  </div>
+
+  <div class="card-panel" style="margin-bottom: 2rem;">
+    <div style="text-align: center; margin-bottom: 1.5rem;">
+      <h2 class="section-title">Scan Previous Medical Documents</h2>
+      <p class="section-subtitle">
+        Scan past handwritten/printed prescriptions, lab reports, or discharge summaries using the kiosk webcam or upload an image.
+      </p>
+    </div>
+
+    <!-- Live Webcam Viewfinder -->
+    <div style="background: #0f172a; border-radius: var(--radius-md); overflow: hidden; position: relative; min-height: 380px; display: flex; align-items: center; justify-content: center;">
+      <video id="webcamVideo" autoplay playsinline style="width: 100%; max-height: 480px; object-fit: contain; display: none;"></video>
+      <canvas id="captureCanvas" style="width: 100%; max-height: 480px; object-fit: contain; display: none;"></canvas>
+
+      <div id="cameraPlaceholder" style="text-align: center; color: #94a3b8; padding: 2rem;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">📷</div>
+        <button type="button" id="startCameraBtn" class="btn btn-primary" style="font-size: 1.15rem;">
+          Open Camera / Webcam
+        </button>
+        <p style="margin-top: 1rem; font-size: 0.9rem;">Or upload a photo directly below</p>
+      </div>
+    </div>
+
+    <!-- Control Buttons -->
+    <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;">
+      <button type="button" id="captureBtn" class="btn btn-primary" style="display: none; font-size: 1.1rem; padding: 0.85rem 2rem;">
+        📸 Capture Document
+      </button>
+      <button type="button" id="retakeBtn" class="btn btn-secondary" style="display: none; font-size: 1.1rem; padding: 0.85rem 2rem;">
+        🔄 Retake Snapshot
+      </button>
+      <label class="btn btn-secondary" style="font-size: 1.1rem; cursor: pointer;">
+        📁 Upload Image File
+        <input type="file" id="fileUploadInput" accept="image/*" style="display: none;" />
+      </label>
+    </div>
+
+    <!-- OCR Status Indicator -->
+    <div id="ocrStatus" class="alert-banner alert-warning" style="display: none; margin-top: 1.5rem;">
+      🟡 Processing OCR extraction...
+    </div>
+
+    <!-- Extracted Information Panel -->
+    <div id="ocrResultsPanel" style="display: none; margin-top: 2rem; padding: 1.5rem; background: #f8fafc; border-radius: var(--radius-md); border: 1.5px solid var(--ayush-border);">
+      <h3 style="color: var(--ayush-primary); margin-bottom: 1rem;">Structured Clinical Extractions</h3>
+      <div id="extractedContent"></div>
+    </div>
+
+    <!-- Continue Button -->
+    <div style="display: flex; justify-content: flex-end; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--ayush-border);">
+      <a href="/summary/{{ session.id }}" class="btn btn-primary" style="font-size: 1.15rem; padding: 0.95rem 2.2rem;">
+        <span>Proceed to Clinical Summary</span> →
+      </a>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/scanner.js"></script>
+{% endblock %}

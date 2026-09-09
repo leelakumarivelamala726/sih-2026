@@ -1,0 +1,110 @@
+{
+  "red_flags": [
+    {
+      "pattern": ["crushing chest pain", "radiating to left arm", "radiating to jaw", "chest pressure and sweating", "gunde batte pothundi", "chhati me dard aur ghabrahat", "nenju vali"],
+      "concern": "Suspected Acute Coronary Syndrome / Myocardial Infarction",
+      "action": "Immediate emergency triage referral required. Stop kiosk case-taking.",
+      "priority": "urgent"
+    },
+    {
+      "pattern": ["shortness of breath at rest", "severe breathlessness", "gasping for air", "saans lene me takleef", "dammu vasthondi", "moochu thinaral"],
+      "concern": "Acute Respiratory Distress / Pulmonary Compromise",
+      "action": "Priority triage alert. Urgent oxygenation/clinical check.",
+      "priority": "urgent"
+    },
+    {
+      "pattern": ["sudden weakness on one side", "facial drooping", "slurred speech", "kallu maathulu pothunnayi", "sudden loss of balance"],
+      "concern": "Suspected Acute Cerebrovascular Event (Stroke)",
+      "action": "Immediate emergency neurology transfer protocol.",
+      "priority": "urgent"
+    },
+    {
+      "pattern": ["coughing blood", "vomiting blood", "black tarry stools", "raktavanti"],
+      "concern": "Active Gastrointestinal / Pulmonary Hemorrhage",
+      "action": "Immediate emergency intervention alert.",
+      "priority": "urgent"
+    },
+    {
+      "pattern": ["high fever with neck stiffness", "fever with confusion", "stiff neck"],
+      "concern": "Suspected Meningitis / Central Nervous System Infection",
+      "action": "Priority medical isolation and acute clinical evaluation.",
+      "priority": "urgent"
+    }
+  ],
+  "ayush_parameters": {
+    "dosha_indicators": {
+      "vata": ["dry skin", "constipation", "irregular appetite", "light sleep", "joint cracking", "anxiety", "cold sensitivity"],
+      "pitta": ["excessive thirst", "burning sensation", "acid reflux", "irritability", "sweating", "heat intolerance", "loose stools"],
+      "kapha": ["sluggishness", "excessive sleep", "heaviness", "slow digestion", "sweet cravings", "congestion", "weight gain"]
+    },
+    "agni_types": {
+      "mandagni": ["mandagni", "poor appetite", "loss of appetite", "aakali aithaledu", "aakali kavatam ledu", "bhookh nahi", "bloating", "dull digestion", "slow digestion", "heaviness in abdomen"],
+      "tikshnagni": ["tikshnagni", "sharp hunger", "excessive hunger", "burning sensation", "acid belching", "frequent eating"],
+      "vishamagni": ["vishamagni", "fluctuating hunger", "irregular appetite", "gas and distension", "unpredictable hunger"],
+      "samagni": ["samagni", "normal appetite", "timely digestion", "lightness after eating"]
+    },
+    "koshtha_types": {
+      "krura": ["krura", "hard stools", "hard dry stools", "constipation", "motion aithaledu", "infrequent evacuation", "straining"],
+      "mridu": ["mridu", "soft stools", "loose stools", "neellala motion", "tendency for diarrhea"],
+      "madhyama": ["madhyama", "regular formed stools", "normal bowel", "once daily"]
+    }
+  },
+  "lab_reference_ranges": {
+    "Fasting Blood Glucose": {"min": 70, "max": 100, "unit": "mg/dL"},
+    "Postprandial Blood Glucose": {"min": 70, "max": 140, "unit": "mg/dL"},
+    "Random Blood Sugar": {"min": 70, "max": 140, "unit": "mg/dL"},
+    "HbA1c": {"min": 4.0, "max": 5.6, "unit": "%"},
+    "Hemoglobin": {"min": 12.0, "max": 17.5, "unit": "g/dL"},
+    "Total Cholesterol": {"min": 120, "max": 200, "unit": "mg/dL"},
+    "Serum Creatinine": {"min": 0.6, "max": 1.2, "unit": "mg/dL"},
+    "Platelet Count": {"min": 150000, "max": 450000, "unit": "cells/mcL"},
+    "Blood Urea": {"min": 15, "max": 40, "unit": "mg/dL"},
+    "Serum Bilirubin": {"min": 0.2, "max": 1.2, "unit": "mg/dL"},
+    "WBC Count": {"min": 4000, "max": 11000, "unit": "cells/mcL"},
+    "ESR": {"min": 0, "max": 20, "unit": "mm/hr"}
+  },
+  "medical_coding_suggestions": [
+    {
+      "condition": "Amlapitta / Acid Peptic Disease",
+      "icd10": "K21.9 (Gastro-esophageal reflux disease without esophagitis)",
+      "namaste_ayush_code": "AYU-GI-042 (Amlapitta - Pittaja Grahani)",
+      "keywords": ["kadupulo manta", "chhati me jalan", "acid reflux", "heartburn", "burning sensation"]
+    },
+    {
+      "condition": "Sandhivata / Osteoarthritis",
+      "icd10": "M19.90 (Unspecified osteoarthritis, unspecified site)",
+      "namaste_ayush_code": "AYU-MS-018 (Sandhivata - Vata Vyadhi)",
+      "keywords": ["joint pain", "knee pain", "kaallu noppulu", "sarvangam noppulu", "stiffness"]
+    },
+    {
+      "condition": "Madhumeha / Type 2 Diabetes Mellitus",
+      "icd10": "E11.9 (Type 2 diabetes mellitus without complications)",
+      "namaste_ayush_code": "AYU-ME-007 (Madhumeha - Vataja Prameha)",
+      "keywords": ["sugar", "diabetes", "frequent urination", "excessive thirst", "polyuria"]
+    },
+    {
+      "condition": "Shwasa Roga / Bronchial Asthma / Respiratory Wheeze",
+      "icd10": "J45.909 (Unspecified asthma, uncomplicated)",
+      "namaste_ayush_code": "AYU-RS-003 (Tamaka Shwasa - Kapha-Vataja)",
+      "keywords": ["aayasam", "dammu", "cough", "wheezing", "breathlessness", "dhummu"]
+    },
+    {
+      "condition": "Vibandha / Chronic Functional Constipation",
+      "icd10": "K59.00 (Constipation, unspecified)",
+      "namaste_ayush_code": "AYU-GI-012 (Vibandha - Purishaja Udavarta)",
+      "keywords": ["motion aithaledu", "constipation", "hard stools", "straining"]
+    },
+    {
+      "condition": "Anidra / Primary Sleep Disturbance",
+      "icd10": "G47.00 (Insomnia, unspecified)",
+      "namaste_ayush_code": "AYU-MN-004 (Anidra - Vata Pitta Prakopa)",
+      "keywords": ["neend nahi aati", "sleep loss", "sleeplessness", "insomnia"]
+    },
+    {
+      "condition": "Hridroga Suspect / Chest Discomfort",
+      "icd10": "R07.9 (Chest pain, unspecified)",
+      "namaste_ayush_code": "AYU-CV-001 (Hridroga Lakshana - Vata Kaphaja)",
+      "keywords": ["chest pain", "chhati lo noppi", "heaviness in chest"]
+    }
+  ]
+}

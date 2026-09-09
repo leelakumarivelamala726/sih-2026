@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Ministry of Ayush – Smart MediKiosk{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/kiosk.css">
+  <link rel="stylesheet" href="/static/css/doctor.css">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Official Government of India / Bharat / Ministry of Ayush Branding Area -->
+  <header class="gov-brand-bar">
+    <div class="brand-left">
+      <img src="/static/images/ayush_logo.png" alt="Ministry of Ayush Emblem" class="ayush-emblem-img">
+      <div class="brand-titles">
+        <div style="font-size: 0.8rem; letter-spacing: 1px; color: #fde68a; font-weight: 700; text-transform: uppercase;">Government of India / Bharat</div>
+        <h1>MINISTRY OF AYUSH</h1>
+        <p>SMART MEDIKIOSK • PRAKRITI-AI CLINICAL HISTORY PLATFORM</p>
+      </div>
+    </div>
+    <div class="brand-right">
+      <div class="kiosk-badge">
+        <span class="pulse-dot"></span>
+        <span>🟢 Kiosk Online</span>
+      </div>
+      <a href="/doctor" class="portal-switch-btn">
+        <span>👨‍⚕️ Doctor Dashboard</span>
+      </a>
+      {% if session.get('session_id') %}
+        <a href="/logout" class="btn btn-secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Exit</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- Flash Messages -->
+  <main class="main-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert-banner alert-{{ category }}">
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="gov-footer">
+    <p>© 2026 Ministry of Ayush, Government of India / Bharat • Smart MediKiosk Clinical Assistant</p>
+    <p style="margin-top: 0.35rem; font-size: 0.75rem; color: #64748b;">
+      Prakriti-AI collects, structures, and summarizes clinical history. Final diagnosis and prescription remain solely with the qualified doctor.
+    </p>
+  </footer>
+
+  <script src="/static/js/speech.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

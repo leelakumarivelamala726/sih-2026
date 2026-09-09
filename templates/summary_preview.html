@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Case-Taking Summary & Review – Smart MediKiosk{% endblock %}
+
+{% block content %}
+<div style="max-width: 920px; margin: 1.5rem auto;">
+  
+  <!-- Success & Token Header Card -->
+  <div class="card-panel" style="text-align: center; margin-bottom: 2rem; position: relative;">
+    <div style="font-size: 3.5rem; margin-bottom: 0.5rem;">✅</div>
+    <span class="kiosk-badge" style="background: #dcfce7; color: #166534; border-color: #86efac; margin-bottom: 0.8rem;">
+      Clinical Intake Complete
+    </span>
+    <h2 class="section-title">Case-Taking Successfully Transmitted</h2>
+    <p class="section-subtitle" style="max-width: 620px; margin: 0 auto 1.5rem auto;">
+      Your health details have been structured for the consulting physician. Please review your details below, make any necessary corrections, and proceed to the Doctor Consultation Room.
+    </p>
+
+    <!-- Consultation Token Slip -->
+    <div id="printableTokenSlip" style="display: inline-block; background: #f0fdf4; border: 2px dashed #16a34a; padding: 1.4rem 3rem; border-radius: var(--radius-lg); margin-bottom: 1.2rem; text-align: center;">
+      <div style="font-size: 0.85rem; text-transform: uppercase; font-weight: 700; color: #166534; letter-spacing: 0.5px;">YOUR CONSULTATION TOKEN</div>
+      <div style="font-size: 3.2rem; font-weight: 900; color: var(--ayush-primary); line-height: 1.1; margin: 0.3rem 0;">{{ session.token_number }}</div>
+      <div style="font-size: 1.05rem; color: #15803d; font-weight: 700;">{{ session.patient_name }} • {{ session.age }}Y / {{ session.gender }}</div>
+      <div style="font-size: 0.9rem; color: #166534; margin-top: 0.2rem;">ABHA ID: <code>{{ session.abha_id }}</code> | Phone: {{ session.phone_number }}</div>
+    </div>
+
+    <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 0.5rem;">
+      <button type="button" onclick="window.print()" class="btn btn-secondary" style="font-size: 0.95rem; padding: 0.55rem 1.4rem;">
+        🖨️ Print Consultation Slip
+      </button>
+      <a href="/doctor" class="btn btn-primary" style="font-size: 0.95rem; padding: 0.55rem 1.4rem;">
+        Switch to Doctor Dashboard ➔
+      </a>
+    </div>
+  </div>
+
+  <!-- Interactive Patient Review & Edit Card -->
+  <div class="card-panel" style="margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid var(--ayush-border); padding-bottom: 0.8rem; margin-bottom: 1.4rem; flex-wrap: wrap; gap: 0.8rem;">
+      <div>
+        <h3 style="color: var(--ayush-primary); font-size: 1.35rem; font-weight: 800; margin: 0;">
+          ✏️ Review & Edit Your Information
+        </h3>
+        <p style="color: var(--ayush-text-muted); font-size: 0.9rem; margin: 0.2rem 0 0 0;">
+          Verify that Prakriti-AI captured your answers accurately. You can update any field below.
+        </p>
+      </div>
+      <span class="kiosk-badge" style="background: #e0f2fe; color: #0369a1; border-color: #bae6fd;">
+        Patient Verification Draft
+      </span>
+    </div>
+
+    <form id="patientEditForm">
+      <!-- Section A: Chief Complaint & Present Illness -->
+      <div style="background: #f8fafc; border-radius: var(--radius-md); padding: 1.2rem; margin-bottom: 1.2rem; border: 1px solid var(--ayush-border);">
+        <h4 style="color: var(--ayush-primary); font-size: 1.05rem; font-weight: 700; margin-bottom: 0.8rem;">
+          1. Chief Complaint & Symptoms
+        </h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="pChiefComplaint" style="font-weight: 600;">Chief Complaint / Main Problem</label>
+            <input type="text" id="pChiefComplaint" class="form-control" value="{{ history.chief_complaint or '' }}" placeholder="e.g. Severe headache and fever" />
+          </div>
+          <div class="form-group">
+            <label for="pDuration" style="font-weight: 600;">Duration</label>
+            <input type="text" id="pDuration" class="form-control" value="{{ history.duration or '' }}" placeholder="e.g. 3 days / 1 week" />
+          </div>
+          <div class="form-group">
+            <label for="pOnset" style="font-weight: 600;">Onset / How it started</label>
+            <input type="text" id="pOnset" class="form-control" value="{{ history.onset or '' }}" placeholder="e.g. Sudden / Gradual after heavy food" />
+          </div>
+          <div class="form-group">
+            <label for="pSeverity" style="font-weight: 600;">Severity (1-10 or Mild/Moderate/Severe)</label>
+            <input type="text" id="pSeverity" class="form-control" value="{{ history.severity or '' }}" placeholder="e.g. Severe (8/10)" />
+          </div>
+          <div class="form-group">
+            <label for="pLocation" style="font-weight: 600;">Location / Area affected</label>
+            <input type="text" id="pLocation" class="form-control" value="{{ history.location or '' }}" placeholder="e.g. Forehead / Upper abdomen" />
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="pAssociatedSymptoms" style="font-weight: 600;">Associated Symptoms</label>
+            <input type="text" id="pAssociatedSymptoms" class="form-control" value="{{ history.associated_symptoms or '' }}" placeholder="e.g. Nausea, body pains, fatigue" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Section B: Past Medical & Family History -->
+      <div style="background: #f8fafc; border-radius: var(--radius-md); padding: 1.2rem; margin-bottom: 1.2rem; border: 1px solid var(--ayush-border);">
+        <h4 style="color: var(--ayush-primary); font-size: 1.05rem; font-weight: 700; margin-bottom: 0.8rem;">
+          2. Medical History & Current Medications
+        </h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label for="pPastMedical" style="font-weight: 600;">Past Medical History</label>
+            <input type="text" id="pPastMedical" class="form-control" value="{{ history.past_medical_history or '' }}" placeholder="e.g. Hypertension, Diabetes, Thyroid" />
+          </div>
+          <div class="form-group">
+            <label for="pPastSurgical" style="font-weight: 600;">Past Surgical History</label>
+            <input type="text" id="pPastSurgical" class="form-control" value="{{ history.past_surgical_history or '' }}" placeholder="e.g. Appendectomy 2019 / None" />
+          </div>
+          <div class="form-group">
+            <label for="pMedications" style="font-weight: 600;">Current Medications</label>
+            <input type="text" id="pMedications" class="form-control" value="{{ history.medication_history or '' }}" placeholder="e.g. Amlodipine 5mg, Paracetamol" />
+          </div>
+          <div class="form-group">
+            <label for="pAllergies" style="font-weight: 600;">Known Allergies</label>
+            <input type="text" id="pAllergies" class="form-control" value="{{ history.allergy_history or '' }}" placeholder="e.g. Penicillin, Dust / None known" />
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="pFamilyHistory" style="font-weight: 600;">Family Medical History</label>
+            <input type="text" id="pFamilyHistory" class="form-control" value="{{ history.family_history or '' }}" placeholder="e.g. Father had diabetes, Mother has asthma" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Section C: Personal, Lifestyle & AYUSH Parameters -->
+      <div style="background: #f8fafc; border-radius: var(--radius-md); padding: 1.2rem; margin-bottom: 1.2rem; border: 1px solid var(--ayush-border);">
+        <h4 style="color: var(--ayush-primary); font-size: 1.05rem; font-weight: 700; margin-bottom: 0.8rem;">
+          3. Personal Routine & AYUSH Clinical Factors
+        </h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label for="pDiet" style="font-weight: 600;">Diet (Ahara)</label>
+            <input type="text" id="pDiet" class="form-control" value="{{ history.diet or history.ahara or '' }}" placeholder="e.g. Vegetarian, spicy food" />
+          </div>
+          <div class="form-group">
+            <label for="pSleep" style="font-weight: 600;">Sleep (Nidra)</label>
+            <input type="text" id="pSleep" class="form-control" value="{{ history.sleep or history.nidra or '' }}" placeholder="e.g. Sound / 6-7 hours / Disturbed" />
+          </div>
+          <div class="form-group">
+            <label for="pAppetite" style="font-weight: 600;">Appetite & Agni</label>
+            <input type="text" id="pAppetite" class="form-control" value="{{ history.appetite or history.agni or '' }}" placeholder="e.g. Moderate / Poor / Irregular" />
+          </div>
+          <div class="form-group">
+            <label for="pBowels" style="font-weight: 600;">Bowel Habits (Koshta)</label>
+            <input type="text" id="pBowels" class="form-control" value="{{ history.bowel_habits or history.koshta or '' }}" placeholder="e.g. Regular / Constipated" />
+          </div>
+          <div class="form-group">
+            <label for="pLifestyle" style="font-weight: 600;">Lifestyle / Activity (Vihara)</label>
+            <input type="text" id="pLifestyle" class="form-control" value="{{ history.lifestyle or history.vihara or '' }}" placeholder="e.g. Sedentary / Moderate walking" />
+          </div>
+          <div class="form-group">
+            <label for="pManasika" style="font-weight: 600;">Stress / Mental State (Manasika)</label>
+            <input type="text" id="pManasika" class="form-control" value="{{ history.manasika or '' }}" placeholder="e.g. Moderate work stress / Calm" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Button & Status Toast -->
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div id="editStatusMessage" style="display: none; font-weight: 600; font-size: 0.95rem; padding: 0.5rem 1rem; border-radius: var(--radius-md);"></div>
+        <button type="button" id="savePatientEditBtn" class="btn btn-accent" style="font-size: 1.05rem; padding: 0.75rem 1.8rem;">
+          💾 Save Corrections & Update Summary
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- AI Summary Preview Accordion -->
+  <div class="card-panel">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+      <h3 style="color: var(--ayush-primary); font-size: 1.3rem; margin: 0;">
+        Physician Intake Preview
+      </h3>
+      <span style="font-size: 0.85rem; color: #64748b; background: #f1f5f9; padding: 0.3rem 0.7rem; border-radius: var(--radius-full);">
+        Structured Clinical Draft
+      </span>
+    </div>
+
+    <div id="aiSummaryBox" style="background: #f8fafc; padding: 1.4rem; border-radius: var(--radius-md); border: 1px solid var(--ayush-border); max-height: 440px; overflow-y: auto; font-family: monospace; font-size: 0.95rem; white-space: pre-wrap; line-height: 1.6;">{{ summary.summary_text }}</div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.8rem; flex-wrap: wrap; gap: 1rem;">
+      <a href="/prakriti/{{ session.id }}" class="btn btn-secondary">
+        ← Speak More to Prakriti-AI
+      </a>
+      <a href="/doctor" class="btn btn-primary" style="font-size: 1.1rem; padding: 0.85rem 2rem;">
+        Proceed to Doctor Station ➔
+      </a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const saveBtn = document.getElementById('savePatientEditBtn');
+  const statusEl = document.getElementById('editStatusMessage');
+  const summaryBox = document.getElementById('aiSummaryBox');
+  const sessionId = {{ session.id }};
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving changes...';
+
+      const payload = {
+        chief_complaint: document.getElementById('pChiefComplaint').value.trim(),
+        duration: document.getElementById('pDuration').value.trim(),
+        onset: document.getElementById('pOnset').value.trim(),
+        severity: document.getElementById('pSeverity').value.trim(),
+        location: document.getElementById('pLocation').value.trim(),
+        associated_symptoms: document.getElementById('pAssociatedSymptoms').value.trim(),
+        past_medical_history: document.getElementById('pPastMedical').value.trim(),
+        past_surgical_history: document.getElementById('pPastSurgical').value.trim(),
+        medication_history: document.getElementById('pMedications').value.trim(),
+        allergy_history: document.getElementById('pAllergies').value.trim(),
+        family_history: document.getElementById('pFamilyHistory').value.trim(),
+        diet: document.getElementById('pDiet').value.trim(),
+        ahara: document.getElementById('pDiet').value.trim(),
+        sleep: document.getElementById('pSleep').value.trim(),
+        nidra: document.getElementById('pSleep').value.trim(),
+        appetite: document.getElementById('pAppetite').value.trim(),
+        agni: document.getElementById('pAppetite').value.trim(),
+        bowel_habits: document.getElementById('pBowels').value.trim(),
+        koshta: document.getElementById('pBowels').value.trim(),
+        lifestyle: document.getElementById('pLifestyle').value.trim(),
+        vihara: document.getElementById('pLifestyle').value.trim(),
+        manasika: document.getElementById('pManasika').value.trim()
+      };
+
+      try {
+        const resp = await fetch(`/api/patient/edit-history/${sessionId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok && data.status === 'success') {
+          statusEl.style.display = 'inline-block';
+          statusEl.style.background = '#dcfce7';
+          statusEl.style.color = '#166534';
+          statusEl.style.border = '1px solid #86efac';
+          statusEl.textContent = '✓ Information updated and summary refreshed!';
+          
+          if (data.summary && data.summary.summary_text) {
+            summaryBox.textContent = data.summary.summary_text;
+          }
+        } else {
+          throw new Error(data.error || 'Failed to update');
+        }
+      } catch (err) {
+        console.error('[Update Error]', err);
+        statusEl.style.display = 'inline-block';
+        statusEl.style.background = '#fee2e2';
+        statusEl.style.color = '#991b1b';
+        statusEl.style.border = '1px solid #f87171';
+        statusEl.textContent = '⚠️ Could not save changes. Please try again.';
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 Save Corrections & Update Summary';
+      }
+    });
+  }
+</script>
+{% endblock %}
+

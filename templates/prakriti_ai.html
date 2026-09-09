@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Prakriti-AI Case-Taking – Smart MediKiosk{% endblock %}
+
+{% block content %}
+<!-- Patient Info Banner -->
+<div class="patient-info-strip">
+  <div class="patient-meta-group">
+    <div class="meta-item">
+      <span class="meta-label">Patient Name</span>
+      <span class="meta-value">{{ session.patient_name }}</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Age / Gender</span>
+      <span class="meta-value">{{ session.age }}Y / {{ session.gender }}</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">ABHA ID</span>
+      <span class="meta-value"><code>{{ session.abha_id }}</code></span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Language</span>
+      <span class="meta-value">{{ languages[session.selected_language].name }}</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 1rem;">
+    <div class="token-badge-large">
+      TOKEN: {{ session.token_number }}
+    </div>
+    <div id="aiStatusIndicator" class="ai-status-pill ai-status-active" style="display: none;">
+      <span class="pulse-dot"></span> 🟢 Prakriti-AI Active
+    </div>
+  </div>
+</div>
+
+<!-- Welcome Screen (Before Clicking START) -->
+<div id="welcomeCard" class="prakriti-welcome-card">
+  <div class="robot-avatar-wrapper">
+    <img src="/static/images/robot_avatar.png" alt="Prakriti-AI Robot Doctor" class="robot-avatar-img">
+  </div>
+  
+  <div class="assistant-badge">Prakriti-AI • Smart Clinical Assistant</div>
+  <h2 style="font-size: 2.2rem; font-weight: 800; color: var(--ayush-primary); margin-bottom: 0.5rem;">
+    "Your Assistant Doctor"
+  </h2>
+  <p style="font-size: 1.15rem; color: var(--ayush-text-muted); max-width: 580px; margin: 0 auto; line-height: 1.5;">
+    I will assist you in preparing a structured clinical history for the consulting physician. You may speak naturally in your regional language or type your responses.
+  </p>
+
+  <div style="margin-top: 1.5rem;">
+    <button type="button" id="startKioskBtn" class="start-case-btn">
+      <span>START CASE-TAKING</span> ➔
+    </button>
+  </div>
+  <div style="margin-top: 1rem; font-size: 0.85rem; color: #64748b;">
+    Microphone permission will be requested after pressing START.
+  </div>
+</div>
+
+<!-- Chat Interface (Active after Clicking START) -->
+<div id="chatInterface" class="chat-container" style="display: none;" data-session-id="{{ session.id }}" data-language="{{ session.selected_language }}" data-bcp47="{{ bcp47 }}">
+  
+  <!-- Emergency Care Notification (Hidden by default, triggered on red-flag) -->
+  <div id="emergencyBanner" class="emergency-care-banner" style="display: none;">
+    <div style="font-size: 1.8rem;">🚨</div>
+    <div>
+      <strong style="font-size: 1.15rem;">URGENT CLINICAL ATTENTION NOTICE</strong>
+      <p style="margin-top: 0.25rem;">The symptoms you reported may require immediate medical attention. Our triage desk has been notified. Please inform the kiosk attendant or nursing station immediately.</p>
+    </div>
+  </div>
+
+  <div class="chat-box">
+    <!-- Messages Scroll Area -->
+    <div id="chatMessages" class="chat-messages">
+      <!-- Bubbles populated dynamically via chat.js -->
+    </div>
+
+    <!-- Input Panel (Voice + Text) -->
+    <div class="chat-input-panel">
+      <button type="button" id="micBtn" class="mic-toggle-btn" title="Click to speak (Voice Input)">
+        🎙️
+      </button>
+      <input 
+        type="text" 
+        id="chatInput" 
+        class="chat-text-input" 
+        placeholder="Type your response or click the microphone to speak..." 
+      />
+      <button type="button" id="sendBtn" class="send-btn" title="Send Response">
+        ➤
+      </button>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation Buttons -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+    <div>
+      <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; cursor: pointer;">
+        <input type="checkbox" id="voiceNarrationToggle" checked style="width: 18px; height: 18px;" />
+        <span>Read AI Questions Aloud (Audio Guidance)</span>
+      </label>
+    </div>
+    <div style="display: flex; gap: 1rem;">
+      <a href="/scanner/{{ session.id }}" id="scanLinkBtn" class="btn btn-secondary" style="font-size: 1rem;">
+        📷 Scan Medical Documents / Lab Reports
+      </a>
+      <a href="/summary/{{ session.id }}" class="btn btn-primary" style="font-size: 1rem;">
+        Complete & Review Summary ➔
+      </a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.enableVoiceNarration = true;
+  document.getElementById('voiceNarrationToggle')?.addEventListener('change', (e) => {
+    window.enableVoiceNarration = e.target.checked;
+  });
+</script>
+<script src="/static/js/chat.js"></script>
+{% endblock %}

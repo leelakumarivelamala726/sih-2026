@@ -1,0 +1,298 @@
+/* Ministry of Ayush – Smart MediKiosk Design System */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --ayush-primary: #0a4d2e;
+  --ayush-primary-light: #127547;
+  --ayush-accent: #d97706;
+  --ayush-accent-gold: #f59e0b;
+  --ayush-bg: #f8fafc;
+  --ayush-card-bg: #ffffff;
+  --ayush-text-main: #0f172a;
+  --ayush-text-muted: #475569;
+  --ayush-border: #e2e8f0;
+  --ayush-success: #10b981;
+  --ayush-warning: #f59e0b;
+  --ayush-danger: #ef4444;
+  --ayush-info: #0284c7;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(10, 77, 46, 0.08);
+  --shadow-lg: 0 12px 28px rgba(10, 77, 46, 0.12);
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  background-color: var(--ayush-bg);
+  color: var(--ayush-text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Header & Official Branding */
+.gov-brand-bar {
+  background: linear-gradient(135deg, var(--ayush-primary) 0%, #063821 100%);
+  color: #ffffff;
+  padding: 0.85rem 2rem;
+  border-bottom: 3px solid var(--ayush-accent-gold);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-md);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.brand-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.ayush-emblem-img {
+  width: 58px;
+  height: 58px;
+  border-radius: var(--radius-full);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  background: #ffffff;
+}
+
+.brand-titles h1 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+
+.brand-titles p {
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.brand-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.kiosk-badge {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.portal-switch-btn {
+  background: var(--ayush-accent);
+  color: #ffffff;
+  text-decoration: none;
+  padding: 0.5rem 1.1rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.portal-switch-btn:hover {
+  background: #b45309;
+  transform: translateY(-1px);
+}
+
+/* Main Container */
+.main-container {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1380px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Cards & Panels */
+.card-panel {
+  background: var(--ayush-card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--ayush-border);
+  box-shadow: var(--shadow-md);
+  padding: 2.2rem;
+  transition: var(--transition);
+}
+
+.card-panel:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+/* Typography & Headings */
+h2.section-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--ayush-primary);
+  margin-bottom: 0.5rem;
+}
+
+p.section-subtitle {
+  color: var(--ayush-text-muted);
+  font-size: 1rem;
+  margin-bottom: 1.8rem;
+}
+
+/* Buttons */
+.btn {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0.85rem 1.6rem;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--ayush-primary) 0%, var(--ayush-primary-light) 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(10, 77, 46, 0.25);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #073822 0%, var(--ayush-primary) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(10, 77, 46, 0.35);
+}
+
+.btn-secondary {
+  background: #f1f5f9;
+  color: var(--ayush-text-main);
+  border: 1px solid var(--ayush-border);
+}
+
+.btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+.btn-accent {
+  background: var(--ayush-accent);
+  color: #ffffff;
+}
+
+.btn-accent:hover {
+  background: #b45309;
+}
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 1.4rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ayush-text-main);
+  margin-bottom: 0.45rem;
+}
+
+.form-control {
+  width: 100%;
+  font-family: inherit;
+  font-size: 1.05rem;
+  padding: 0.85rem 1.1rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--ayush-border);
+  background: #ffffff;
+  color: var(--ayush-text-main);
+  transition: var(--transition);
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--ayush-primary);
+  box-shadow: 0 0 0 4px rgba(18, 117, 71, 0.12);
+}
+
+.form-note {
+  font-size: 0.85rem;
+  color: var(--ayush-text-muted);
+  margin-top: 0.35rem;
+}
+
+/* Flash Alerts */
+.alert-banner {
+  padding: 1rem 1.4rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.alert-danger {
+  background: #fef2f2;
+  color: #991b1b;
+  border-left: 5px solid #dc2626;
+}
+
+.alert-warning {
+  background: #fffbeb;
+  color: #92400e;
+  border-left: 5px solid #d97706;
+}
+
+.alert-success {
+  background: #f0fdf4;
+  color: #166534;
+  border-left: 5px solid #16a34a;
+}
+
+.alert-info {
+  background: #f0f9ff;
+  color: #075985;
+  border-left: 5px solid #0284c7;
+}
+
+/* Footer */
+footer.gov-footer {
+  background: #062617;
+  color: #94a3b8;
+  padding: 1.2rem 2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: auto;
+}
+
+footer.gov-footer a {
+  color: var(--ayush-accent-gold);
+  text-decoration: none;
+}

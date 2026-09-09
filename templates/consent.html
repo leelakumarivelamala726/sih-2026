@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Consent & Language Selection – Smart MediKiosk{% endblock %}
+
+{% block content %}
+<div style="max-width: 780px; margin: 1.5rem auto;">
+  <div class="card-panel">
+    
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <span class="kiosk-badge" style="background: #e0f2fe; color: #0369a1; border-color: #bae6fd; margin-bottom: 0.8rem;">
+        🔒 Patient Privacy & Medical Protocol
+      </span>
+      <h2 class="section-title">Patient Consent & Language Selection</h2>
+      <p class="section-subtitle">Please select your preferred Indian language and review the consent terms below.</p>
+    </div>
+
+    <form method="POST" action="/consent/{{ session.id }}" id="consentForm">
+      
+      <!-- Language Selection -->
+      <div class="form-group" style="margin-bottom: 2rem;">
+        <label for="selected_language" style="font-size: 1.1rem;">Choose Your Preferred Language / భాషను ఎంచుకోండి / भाषा चुनें *</label>
+        <select id="selected_language" name="selected_language" class="form-control" style="font-size: 1.15rem; padding: 0.9rem 1.2rem;">
+          {% for code, lang_info in languages.items() %}
+            <option value="{{ code }}" {% if session.selected_language == code %}selected{% endif %}>
+              {{ lang_info.name }}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="form-note">
+          Prakriti-AI understands Indian regional dialects, slangs, and mixed speech (including Telangana, Rayalaseema, and Coastal Andhra variations).
+        </div>
+      </div>
+
+      <!-- Consent Notice Box -->
+      <div style="background: #f8fafc; border: 1.5px solid var(--ayush-border); border-radius: var(--radius-md); padding: 1.6rem; margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 id="consentTitle" style="color: var(--ayush-primary); font-size: 1.25rem;">
+            Patient Consent & Clinical Data Notice
+          </h3>
+          <button type="button" id="audioGuidanceBtn" class="btn btn-secondary" style="padding: 0.45rem 1rem; font-size: 0.9rem;">
+            🔊 Audio Guidance
+          </button>
+        </div>
+
+        <p id="consentBody" style="font-size: 1.05rem; line-height: 1.6; color: var(--ayush-text-main); margin-bottom: 1rem;">
+          Welcome to the Ministry of Ayush Smart MediKiosk. Prakriti-AI will assist you in collecting and preparing your clinical history before consulting the physician. The AI assistant does <strong>NOT</strong> provide a final medical diagnosis and does <strong>NOT</strong> prescribe medicines. A qualified doctor will review, edit, and verify everything before it becomes your final medical record.
+        </p>
+
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-top: 1.2rem; padding: 0.8rem; background: #ffffff; border-radius: 8px; border: 1px solid var(--ayush-border);">
+          <input type="checkbox" id="consent_agreed" name="consent_agreed" value="yes" required style="width: 22px; height: 22px; accent-color: var(--ayush-primary);" />
+          <label for="consent_agreed" style="font-size: 1.05rem; font-weight: 700; color: var(--ayush-text-main); margin-bottom: 0; cursor: pointer;">
+            I Understand and Consent to AI-assisted Clinical History Intake
+          </label>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+        <a href="/logout" class="btn btn-secondary" style="font-size: 1.05rem; padding: 0.9rem 1.8rem;">
+          Decline & Exit
+        </a>
+        <button type="submit" class="btn btn-primary" style="font-size: 1.15rem; padding: 0.9rem 2.4rem;">
+          <span>Continue to Prakriti-AI</span> →
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const consentTexts = {{ consent_texts | tojson }};
+  const langSelect = document.getElementById('selected_language');
+  const titleEl = document.getElementById('consentTitle');
+  const bodyEl = document.getElementById('consentBody');
+  const audioBtn = document.getElementById('audioGuidanceBtn');
+
+  function updateConsentDisplay() {
+    const lang = langSelect.value;
+    const textData = consentTexts[lang] || consentTexts['en'];
+    titleEl.textContent = textData.title;
+    bodyEl.textContent = textData.description;
+  }
+
+  langSelect.addEventListener('change', updateConsentDisplay);
+
+  audioBtn.addEventListener('click', () => {
+    const speech = new window.PrakritiSpeechEngine(langSelect.value === 'te' ? 'te-IN' : (langSelect.value === 'hi' ? 'hi-IN' : 'en-IN'));
+    speech.speakText(bodyEl.textContent);
+  });
+</script>
+{% endblock %}
