@@ -113,7 +113,13 @@
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'en-IN';
       utter.rate = 0.95;
+      const voice = window.loadPreferredEnglishVoice ? window.loadPreferredEnglishVoice() : null;
+      if (voice && window.isEnglishVoice && window.isEnglishVoice(voice)) {
+        utter.voice = voice;
+        if (voice.lang) utter.lang = voice.lang;
+      }
       window.speechSynthesis.speak(utter);
     }
   }

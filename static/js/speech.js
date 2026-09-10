@@ -9,35 +9,94 @@ let isSpeaking = false;
 let currentUtterance = null;
 let preferredEnglishVoice = null;
 
+/**
+ * Strictly verify if a voice is an English voice.
+ * Ensures language starts with 'en-' or equals 'en',
+ * and explicitly rejects non-English / Telugu indicators.
+ */
+function isEnglishVoice(v) {
+  if (!v) return false;
+  const lang = (v.lang || '').replace(/_/g, '-').toLowerCase();
+  const name = (v.name || '').toLowerCase();
+  if (lang.startsWith('te') || name.includes('telugu') || name.includes('తెలుగు')) {
+    return false;
+  }
+  return lang.startsWith('en-') || lang === 'en';
+}
+
+/**
+ * Load and select the best available English voice:
+ * - Loads voices using speechSynthesis.getVoices()
+ * - Strictly filters voices whose lang starts with "en-"
+ * - Prioritizes en-IN if available, otherwise en-US
+ * - NEVER falls back to voices[0] or OS default (e.g. Telugu)
+ * - Returns null if no English voice is found so the browser uses its English fallback
+ */
 function loadPreferredEnglishVoice() {
   if (!('speechSynthesis' in window)) return null;
   const voices = window.speechSynthesis.getVoices();
   if (!voices || voices.length === 0) return null;
 
-  // Search hierarchy for natural English voice suitable for clinical conversation
-  const voicePredicates = [
-    v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Online')),
-    v => v.name.includes('Google') && (v.lang === 'en-US' || v.lang === 'en-GB' || v.lang === 'en-IN'),
-    v => v.lang === 'en-US' || v.lang === 'en-GB' || v.lang === 'en-IN',
-    v => v.lang.startsWith('en')
-  ];
-
-  for (const pred of voicePredicates) {
-    const found = voices.find(pred);
-    if (found) {
-      preferredEnglishVoice = found;
-      return found;
-    }
+  // Filter strictly English voices
+  const englishVoices = voices.filter(isEnglishVoice);
+  if (englishVoices.length === 0) {
+    // Under NO circumstances fall back to voices[0] or OS default!
+    preferredEnglishVoice = null;
+    return null;
   }
-  preferredEnglishVoice = voices[0];
+
+  const getNormLang = v => (v.lang || '').replace(/_/g, '-').toLowerCase();
+  const isHighQuality = v => {
+    const n = (v.name || '').toLowerCase();
+    return n.includes('natural') || n.includes('neural') || n.includes('google') || n.includes('online');
+  };
+
+  // 1. Prioritize en-IN (Indian English)
+  const enInHighQuality = englishVoices.find(v => getNormLang(v) === 'en-in' && isHighQuality(v));
+  if (enInHighQuality) {
+    preferredEnglishVoice = enInHighQuality;
+    return enInHighQuality;
+  }
+  const enInAny = englishVoices.find(v => getNormLang(v) === 'en-in');
+  if (enInAny) {
+    preferredEnglishVoice = enInAny;
+    return enInAny;
+  }
+
+  // 2. Otherwise prioritize en-US (US English)
+  const enUsHighQuality = englishVoices.find(v => getNormLang(v) === 'en-us' && isHighQuality(v));
+  if (enUsHighQuality) {
+    preferredEnglishVoice = enUsHighQuality;
+    return enUsHighQuality;
+  }
+  const enUsAny = englishVoices.find(v => getNormLang(v) === 'en-us');
+  if (enUsAny) {
+    preferredEnglishVoice = enUsAny;
+    return enUsAny;
+  }
+
+  // 3. Fallback to any other English voice (e.g. en-GB, en-AU)
+  const otherHighQuality = englishVoices.find(isHighQuality);
+  if (otherHighQuality) {
+    preferredEnglishVoice = otherHighQuality;
+    return otherHighQuality;
+  }
+
+  preferredEnglishVoice = englishVoices[0];
   return preferredEnglishVoice;
 }
 
+// Register voiceschanged listeners
 if ('speechSynthesis' in window) {
   loadPreferredEnglishVoice();
-  if (window.speechSynthesis.onvoiceschanged !== undefined) {
-    window.speechSynthesis.onvoiceschanged = loadPreferredEnglishVoice;
+  if (typeof window.speechSynthesis.addEventListener === 'function') {
+    window.speechSynthesis.addEventListener('voiceschanged', () => {
+      loadPreferredEnglishVoice();
+    });
   }
+  window.speechSynthesis.onvoiceschanged = () => {
+    loadPreferredEnglishVoice();
+  };
 }
 
 function setAISpeakingState(state) {
@@ -52,8 +111,9 @@ function setAISpeakingState(state) {
  * Reusable function to speak AI response using Web Speech Synthesis API.
  * - Cancels previous speech
  * - Creates SpeechSynthesisUtterance
- * - Sets language to English
- * - Selects best available English voice
+ * - Explicitly forces language to English (en-IN or en-US)
+ * - Selects best available English voice (en-IN prioritized, then en-US)
+ * - Uses browser English fallback if no voice object installed (never Telugu)
  * - Speaks the AI response
  * - Exposes speaking state so the UI can show "Speaking..."
  */
@@ -85,16 +145,24 @@ function speakAIResponse(text, callbacks = {}) {
     // 2. Create SpeechSynthesisUtterance
     const utterance = new SpeechSynthesisUtterance(cleanText);
 
-    // 3. Set language to English (clinical patient-case conversation)
-    utterance.lang = 'en-US';
+    // 3. Explicitly force intended AI voice language to English
+    // Do NOT depend on browser default voice or system language
+    utterance.lang = 'en-IN';
     utterance.rate = 0.95; // Calm, clear, empathetic clinical cadence
     utterance.pitch = 1.0;
 
     // 4. Select the best available English voice
-    const voice = preferredEnglishVoice || loadPreferredEnglishVoice();
-    if (voice) {
+    const voice = loadPreferredEnglishVoice() || preferredEnglishVoice;
+    if (voice && isEnglishVoice(voice)) {
       utterance.voice = voice;
-      if (voice.lang) utterance.lang = voice.lang;
+      if (voice.lang && isEnglishVoice(voice)) {
+        utterance.lang = voice.lang;
+      }
+    } else {
+      // If no English voice is available in getVoices(), use browser's
+      // English-language speechSynthesis fallback instead of selecting a Telugu voice.
+      utterance.voice = null;
+      utterance.lang = 'en-IN';
     }
 
     // 5. Expose speaking state
@@ -147,6 +215,8 @@ function stopAISpeech() {
 
 window.speakAIResponse = speakAIResponse;
 window.stopAISpeech = stopAISpeech;
+window.loadPreferredEnglishVoice = loadPreferredEnglishVoice;
+window.isEnglishVoice = isEnglishVoice;
 window.isAISpeaking = false;
 
 class PrakritiSpeechEngine {
