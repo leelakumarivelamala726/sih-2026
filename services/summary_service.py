@@ -10,9 +10,88 @@ All information requires physician review, editing, and verification.
 """
 
 import os
+AI_API_KEY = os.getenv("AI_API_KEY")
+
 import json
-from typing import Dict, Any, List
+import requests
+from typing import Dict, Any, List, Optional
 from database.db import get_db_connection, get_clinical_history, get_session
+
+def generate_live_ai_summary_text(
+    session: dict,
+    history: dict,
+    transcripts: list,
+    lab_items: list,
+    rx_items: list,
+    red_flags: list,
+    coding_suggestions: list
+) -> Optional[str]:
+    """Generate a structured physician-ready clinical case summary using live Gemini API via AI_API_KEY."""
+    key = os.getenv("AI_API_KEY")
+    if not key or key == "your_ai_api_key_here":
+        return None
+
+    patient_name = session.get("patient_name", "Unknown")
+    age = session.get("age", "N/A")
+    gender = session.get("gender", "N/A")
+    abha_id = session.get("abha_id", "N/A")
+    token = session.get("token_number", "N/A")
+    priority = "🔴 URGENT ATTENTION REQUIRED" if session.get("priority_level") == "urgent" else "🟢 Normal Priority"
+
+    system_instruction = (
+        "You are AYUSH KRITI, the clinical summarization engine for Ministry of Ayush Smart MediKiosk in the Government of Bharat.\n"
+        "Synthesize a professional, comprehensive pre-consultation clinical case summary in Markdown for the consulting physician.\n"
+        "MANDATORY SAFETY & CLINICAL CONSTRAINTS:\n"
+        "1. AI NEVER makes a final diagnosis or concludes a disease.\n"
+        "2. AI NEVER prescribes, recommends, or issues new medications or dosages.\n"
+        "3. Any medications from previous documents must be explicitly labeled as 'Historical Prescriptions (Extracted from Documents)' and NOT new prescriptions.\n"
+        "4. Include an explicit SAFETY NOTICE alerting the physician that this is an AI-assisted intake draft requiring physician review and verification.\n"
+        "5. Structure the summary with headers: Patient Overview & Triage Status, Red Flags (if any), Chief Complaint & HPI, "
+        "Past Medical & Surgical History, Medication & Allergy Profile, AYUSH Clinical Parameters (Agni, Koshta, Ama, Nidra, Ahara/Vihara, Manasika), "
+        "Scanned Document Findings (highlighting abnormal lab tests in a table and historical Rx in a table), and Suggested ICD-10 & AYUSH NAMASTE codes."
+    )
+
+    prompt = f"""
+Patient: {patient_name} | Age/Gender: {age}Y/{gender} | ABHA ID: {abha_id} | Token: {token} | Triage: {priority}
+Clinical History Data: {json.dumps(history, default=str)}
+Patient Verbatim Transcripts: {json.dumps([dict(t) for t in transcripts[:25]], default=str)}
+Lab Reports Extracted: {json.dumps(lab_items, default=str)}
+Historical Medications: {json.dumps(rx_items, default=str)}
+Red Flags Detected: {json.dumps(red_flags, default=str)}
+Suggested Medical Codes: {json.dumps(coding_suggestions, default=str)}
+
+Draft the complete physician-ready clinical summary in clean, professional Markdown.
+"""
+
+    candidate_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash"]
+    for model in candidate_models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
+            "generationConfig": {"temperature": 0.2}
+        }
+        try:
+            resp = requests.post(url, json=payload, timeout=6)
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    text = candidates[0].get("content", {}).get("parts", [])[0].get("text", "").strip()
+                    if len(text) > 100:
+                        return text
+            elif resp.status_code == 429:
+                # Quota limit reached on free tier; break immediately to avoid blocking server
+                print(f"[AI Summary] Live model {model} rate limited (HTTP 429). Using high-accuracy clinical intake fallback.")
+                break
+        except requests.exceptions.Timeout:
+            print(f"[AI Summary] Live model {model} timed out after 6s. Trying fallback.")
+            continue
+        except Exception as e:
+            print(f"[AI Summary] Live model {model} query error: {e}")
+            continue
+
+    return None
 
 ENTITY_RULES_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "prakriti_ai", "entity_rules.json")
 with open(ENTITY_RULES_PATH, "r", encoding="utf-8") as f:
@@ -35,14 +114,53 @@ def suggest_medical_codes(chief_complaint: str, hpi: str, all_text: str) -> List
                 break
     return suggested
 
-def generate_clinical_summary(session_id: int) -> Dict[str, Any]:
+def generate_clinical_summary(session_id: int, force_refresh: bool = False) -> Dict[str, Any]:
     """
     Synthesize complete clinical history, transcripts, and OCR document extractions
     into a comprehensive physician-ready clinical summary.
+    Checks database cache first for instant retrieval unless force_refresh is True.
     """
     session = get_session(session_id)
     if not session:
-        return {"error": "Session not found"}
+        return {"status": "error", "message": "Session not found", "summary_text": "Error: Patient session not found."}
+
+    # 1. Check existing cached summary in ai_summaries table for instant retrieval
+    if not force_refresh:
+        with get_db_connection() as conn:
+            existing = conn.execute(
+                "SELECT id, summary, generated_at FROM ai_summaries WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+                (session_id,)
+            ).fetchone()
+            if existing and existing["summary"] and len(existing["summary"].strip()) > 50:
+                history = get_clinical_history(session_id) or {}
+                coding_suggestions = suggest_medical_codes(
+                    history.get("chief_complaint") or "",
+                    history.get("history_of_present_illness") or "",
+                    history.get("ayush_specific_history") or ""
+                )
+                labs = conn.execute(
+                    "SELECT * FROM lab_reports WHERE session_id = ? ORDER BY abnormal_flag DESC, id ASC",
+                    (session_id,)
+                ).fetchall()
+                rxs = conn.execute(
+                    "SELECT * FROM prescriptions WHERE session_id = ? ORDER BY id ASC",
+                    (session_id,)
+                ).fetchall()
+                red_flags_raw = history.get("red_flags") or "[]"
+                try:
+                    red_flags = json.loads(red_flags_raw)
+                except Exception:
+                    red_flags = []
+
+                return {
+                    "status": "success",
+                    "summary_id": existing["id"],
+                    "summary_text": existing["summary"],
+                    "coding_suggestions": coding_suggestions,
+                    "red_flags": red_flags,
+                    "lab_items": [dict(r) for r in labs],
+                    "rx_items": [dict(r) for r in rxs]
+                }
 
     history = get_clinical_history(session_id) or {}
 
@@ -162,9 +280,29 @@ def generate_clinical_summary(session_id: int) -> Dict[str, Any]:
     # Safety Disclaimer
     summary_lines.append("\n---")
     summary_lines.append("> [!NOTE]")
-    summary_lines.append("> **SAFETY NOTICE**: This summary is an AI-assisted structured intake draft prepared by Prakriti-AI. The AI does NOT diagnose, treat, or prescribe. The final clinical evaluation, diagnosis, and prescription remain the sole responsibility of the qualified physician.")
+    summary_lines.append("> **SAFETY NOTICE**: This summary is an AI-assisted structured intake draft prepared by AYUSH KRITI. The AI does NOT diagnose, treat, or prescribe. The final clinical evaluation, diagnosis, and prescription remain the sole responsibility of the qualified physician.")
 
-    full_summary_text = "\n".join(summary_lines)
+    fallback_summary_text = "\n".join(summary_lines)
+
+    # Fetch transcripts for live AI synthesis
+    with get_db_connection() as conn:
+        transcripts = conn.execute(
+            "SELECT speaker, original_transcript FROM transcripts WHERE session_id = ? ORDER BY id ASC",
+            (session_id,)
+        ).fetchall()
+
+    # Attempt Live AI Summary via AI_API_KEY
+    live_summary = generate_live_ai_summary_text(
+        session=session,
+        history=history,
+        transcripts=transcripts,
+        lab_items=lab_items,
+        rx_items=rx_items,
+        red_flags=red_flags,
+        coding_suggestions=coding_suggestions
+    )
+
+    full_summary_text = live_summary if live_summary else fallback_summary_text
 
     # Save to ai_summaries table
     with get_db_connection() as conn:

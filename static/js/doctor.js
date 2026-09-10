@@ -4,8 +4,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const queueListEl = document.getElementById('doctorQueueList');
-  const patientSearchInput = document.getElementById('patientSearchInput');
+  const patientSelect = document.getElementById('doctorPatientSelect');
   const tabButtons = document.querySelectorAll('.console-tab-btn');
   const tabPanes = document.querySelectorAll('.tab-pane');
   const verifyBtn = document.getElementById('verifyClinicalBtn');
@@ -24,161 +23,232 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Load patient bundle when clicking a queue item
-  document.addEventListener('click', (e) => {
-    const queueItem = e.target.closest('.queue-item');
-    if (queueItem) {
-      document.querySelectorAll('.queue-item').forEach(i => i.classList.remove('active'));
-      queueItem.classList.add('active');
-      activeSessionId = queueItem.dataset.sessionId;
-      loadPatientBundle(activeSessionId);
-    }
-  });
-
-  // Patient Search
-  if (patientSearchInput) {
-    patientSearchInput.addEventListener('input', async (e) => {
-      const q = e.target.value.trim();
-      if (!q) {
-        loadQueue();
-        return;
+  // Quick Patient Switcher Event
+  if (patientSelect) {
+    patientSelect.addEventListener('change', (e) => {
+      const sid = e.target.value;
+      if (sid) {
+        activeSessionId = sid;
+        loadPatientBundle(sid);
       }
-      const resp = await fetch(`/api/doctor/search?q=${encodeURIComponent(q)}`);
-      const data = await resp.json();
-      renderSearchResults(data.results);
     });
   }
 
-  async function loadQueue() {
-    try {
-      const resp = await fetch('/api/doctor/queue');
-      const data = await resp.json();
-      renderQueue(data.queue);
-    } catch (err) {
-      console.error('[Queue Fetch Error]', err);
-    }
-  }
-
-  function renderQueue(queue) {
-    if (!queueListEl) return;
-    queueListEl.innerHTML = '';
-    if (queue.length === 0) {
-      queueListEl.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: var(--ayush-text-muted);">No patients currently in queue.</div>';
-      return;
-    }
-
-    queue.forEach((p, idx) => {
-      const item = document.createElement('div');
-      item.className = `queue-item ${p.priority_level === 'urgent' ? 'urgent' : ''} ${idx === 0 && !activeSessionId ? 'active' : ''}`;
-      item.dataset.sessionId = p.session_id;
-
-      item.innerHTML = `
-        <div class="queue-item-header">
-          <span class="queue-token">${p.token_number}</span>
-          ${p.priority_level === 'urgent' ? '<span class="badge-urgent">🔴 URGENT</span>' : (p.status === 'verified' ? '<span class="badge-verified">✓ VERIFIED</span>' : '<span class="badge-normal">WAITING</span>')}
-        </div>
-        <div class="queue-patient-name">${p.patient_name}</div>
-        <div class="queue-meta">${p.age}Y • ${p.gender} • ABHA: <code>${p.abha_id}</code></div>
-        <div class="queue-meta" style="color: var(--ayush-primary); font-weight: 600;">${p.chief_complaint || 'Case-taking in progress'}</div>
-      `;
-      queueListEl.appendChild(item);
-    });
-
-    if (!activeSessionId && queue.length > 0) {
-      activeSessionId = queue[0].session_id;
-      loadPatientBundle(activeSessionId);
-    }
-  }
-
-  function renderSearchResults(results) {
-    if (!queueListEl) return;
-    queueListEl.innerHTML = '<div style="padding: 0.5rem 0.8rem; font-size: 0.8rem; color: #92400e; background: #fffbeb; border-radius: 6px; margin-bottom: 0.5rem;">Note: Phone numbers may match multiple family members.</div>';
-    results.forEach(p => {
-      const item = document.createElement('div');
-      item.className = 'queue-item';
-      item.innerHTML = `
-        <div class="queue-patient-name">${p.patient_name}</div>
-        <div class="queue-meta">${p.age}Y • ${p.gender} • ABHA: <code>${p.abha_id}</code></div>
-        <div class="queue-meta">Phone: ${p.phone_number} • Total Visits: ${p.visit_count}</div>
-      `;
-      queueListEl.appendChild(item);
+  // Print Case Summary
+  const printBtn = document.getElementById('printCaseSummaryBtn');
+  if (printBtn) {
+    printBtn.addEventListener('click', () => {
+      window.print();
     });
   }
 
-  async function loadPatientBundle(sessionId) {
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  async function loadPatientBundle(sessionId, forceRefresh = false) {
     const consoleContainer = document.getElementById('clinicalConsole');
-    if (!consoleContainer) return;
+    if (!consoleContainer || !sessionId) return;
+
+    const summaryEl = document.getElementById('aiSummaryContent');
+    if (summaryEl) {
+      summaryEl.innerHTML = `
+        <div style="padding: 2.5rem 1rem; text-align: center; color: var(--ayush-text-muted);">
+          <span class="pulse-dot"></span>
+          <span style="font-weight: 700; color: var(--ayush-primary); margin-left: 0.6rem; font-size: 1.05rem;">Generating clinical summary with AYUSH KRITI...</span>
+          <p style="margin-top: 0.5rem; font-size: 0.85rem; color: #64748b;">Synthesizing chief complaint, clinical history, transcripts, and scanned reports...</p>
+        </div>
+      `;
+    }
 
     try {
-      const resp = await fetch(`/api/doctor/patient/${sessionId}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const url = forceRefresh ? `/api/doctor/patient/${sessionId}?force_refresh=1` : `/api/doctor/patient/${sessionId}`;
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!resp.ok) {
+        throw new Error(`Server returned HTTP ${resp.status}: ${resp.statusText}`);
+      }
+
       const bundle = await resp.json();
+      if (!bundle || bundle.error) {
+        throw new Error(bundle ? bundle.error : 'Invalid response from clinical bundle API');
+      }
+
+      const sessionObj = bundle.session || {};
+      const historyObj = bundle.history || {};
 
       // Populate Header
-      document.getElementById('patientHeaderName').textContent = `${bundle.session.patient_name} (${bundle.session.age}Y / ${bundle.session.gender})`;
-      document.getElementById('patientHeaderToken').textContent = `Token: ${bundle.session.token_number}`;
-      document.getElementById('patientHeaderAbha').textContent = `ABHA: ${bundle.session.abha_id}`;
+      const nameEl = document.getElementById('patientHeaderName');
+      if (nameEl) nameEl.textContent = `${sessionObj.patient_name || 'Patient'} (${sessionObj.age || 'N/A'}Y / ${sessionObj.gender || 'N/A'})`;
+      
+      const tokenEl = document.getElementById('patientHeaderToken');
+      if (tokenEl) tokenEl.textContent = `Token: ${sessionObj.token_number || '-'}`;
+      
+      const abhaEl = document.getElementById('patientHeaderAbha');
+      if (abhaEl) abhaEl.textContent = `ABHA: ${sessionObj.abha_id || '-'}`;
+
+      const complaintEl = document.getElementById('patientHeaderComplaint');
+      if (complaintEl) {
+        complaintEl.textContent = `Chief Complaint: ${historyObj.chief_complaint || sessionObj.chief_complaint || 'Case-taking in progress'}`;
+      }
+
+      // Red-flag notification badge
+      const redFlagBadge = document.getElementById('patientRedFlagBadge');
+      if (redFlagBadge) {
+        const isUrgent = sessionObj.priority_level === 'urgent' || (historyObj.red_flags && historyObj.red_flags !== '[]');
+        redFlagBadge.style.display = isUrgent ? 'inline-block' : 'none';
+      }
+
+      // Sync dropdown value
+      if (patientSelect && patientSelect.value != sessionId) {
+        patientSelect.value = sessionId;
+      }
 
       // Tab 1: AI Summary
-      document.getElementById('aiSummaryContent').innerHTML = renderMarkdown(bundle.summary.summary_text);
+      let summaryText = '';
+      if (bundle.summary && bundle.summary.summary_text) {
+        summaryText = bundle.summary.summary_text;
+      } else if (bundle.summary && typeof bundle.summary === 'string') {
+        summaryText = bundle.summary;
+      }
+
+      if (summaryText && summaryText.trim()) {
+        if (summaryEl) summaryEl.innerHTML = renderMarkdown(summaryText);
+      } else {
+        // Fetch via dedicated AI summary endpoint if bundle summary is absent
+        await loadDedicatedAISummary(sessionId, forceRefresh);
+      }
 
       // Tab 2: Original Verbatim Transcripts
       const transcriptsContainer = document.getElementById('transcriptContent');
-      transcriptsContainer.innerHTML = '';
-      if (bundle.transcripts && bundle.transcripts.length > 0) {
-        bundle.transcripts.forEach(t => {
-          const tRow = document.createElement('div');
-          tRow.style.padding = '0.75rem 1rem';
-          tRow.style.borderBottom = '1px solid #e2e8f0';
-          tRow.innerHTML = `
-            <div style="font-size: 0.8rem; font-weight: 700; color: ${t.speaker === 'ai' ? '#0a4d2e' : '#0284c7'};">
-              ${t.speaker.toUpperCase()} (${t.language}) • ${t.created_at}
-            </div>
-            <div style="font-size: 1rem; margin-top: 0.25rem;">${t.original_transcript}</div>
-          `;
-          transcriptsContainer.appendChild(tRow);
-        });
-      } else {
-        transcriptsContainer.innerHTML = '<p style="color: #64748b;">No conversation transcripts recorded.</p>';
+      if (transcriptsContainer) {
+        transcriptsContainer.innerHTML = '';
+        const transcripts = bundle.transcripts || [];
+        if (transcripts.length > 0) {
+          transcripts.forEach(t => {
+            const tRow = document.createElement('div');
+            tRow.style.padding = '0.75rem 1rem';
+            tRow.style.borderBottom = '1px solid #e2e8f0';
+            tRow.innerHTML = `
+              <div style="font-size: 0.8rem; font-weight: 700; color: ${t.speaker === 'ai' ? '#0a4d2e' : '#0284c7'};">
+                ${(t.speaker || 'AI').toUpperCase()} (${t.language || 'en'}) • ${t.created_at || ''}
+              </div>
+              <div style="font-size: 1rem; margin-top: 0.25rem;">${escapeHtml(t.original_transcript)}</div>
+            `;
+            transcriptsContainer.appendChild(tRow);
+          });
+        } else {
+          transcriptsContainer.innerHTML = '<p style="color: #64748b;">No conversation transcripts recorded.</p>';
+        }
       }
 
       // Tab 3: Scanned Reports & Labs
       renderReportsTab(bundle);
 
       // Tab 4: Editable History & AYUSH Parameters
-      document.getElementById('editChiefComplaint').value = bundle.history.chief_complaint || '';
-      document.getElementById('editDuration').value = bundle.history.duration || '';
-      document.getElementById('editOnset').value = bundle.history.onset || '';
-      document.getElementById('editSeverity').value = bundle.history.severity || '';
-      document.getElementById('editLocation').value = bundle.history.location || '';
-      document.getElementById('editAssociatedSymptoms').value = bundle.history.associated_symptoms || '';
-      document.getElementById('editHpi').value = bundle.history.history_of_present_illness || '';
-      document.getElementById('editPastHistory').value = bundle.history.past_medical_history || '';
-      document.getElementById('editPastSurgical').value = bundle.history.past_surgical_history || '';
-      document.getElementById('editMedications').value = bundle.history.medication_history || '';
-      document.getElementById('editAllergies').value = bundle.history.allergy_history || '';
-      document.getElementById('editFamilyHistory').value = bundle.history.family_history || '';
+      const safeVal = (v) => v || '';
+      const setInput = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = safeVal(val);
+      };
+
+      setInput('editChiefComplaint', historyObj.chief_complaint);
+      setInput('editDuration', historyObj.duration);
+      setInput('editOnset', historyObj.onset);
+      setInput('editSeverity', historyObj.severity);
+      setInput('editLocation', historyObj.location);
+      setInput('editAssociatedSymptoms', historyObj.associated_symptoms);
+      setInput('editHpi', historyObj.history_of_present_illness);
+      setInput('editPastHistory', historyObj.past_medical_history);
+      setInput('editPastSurgical', historyObj.past_surgical_history);
+      setInput('editMedications', historyObj.medication_history);
+      setInput('editAllergies', historyObj.allergy_history);
+      setInput('editFamilyHistory', historyObj.family_history);
 
       // AYUSH fields
-      document.getElementById('editPrakriti').value = bundle.history.prakriti || '';
-      document.getElementById('editVikriti').value = bundle.history.vikriti || '';
-      document.getElementById('editDosha').value = bundle.history.dosha || '';
-      document.getElementById('editAgni').value = bundle.history.agni || '';
-      document.getElementById('editAma').value = bundle.history.ama || '';
-      document.getElementById('editKoshta').value = bundle.history.koshta || bundle.history.bowel_habits || '';
-      document.getElementById('editNidra').value = bundle.history.nidra || bundle.history.sleep || '';
-      document.getElementById('editAhara').value = bundle.history.ahara || bundle.history.diet || '';
-      document.getElementById('editVihara').value = bundle.history.vihara || bundle.history.lifestyle || '';
-      document.getElementById('editManasika').value = bundle.history.manasika || '';
-      document.getElementById('editAyushHistory').value = bundle.history.ayush_specific_history || '';
+      setInput('editPrakriti', historyObj.prakriti);
+      setInput('editVikriti', historyObj.vikriti);
+      setInput('editDosha', historyObj.dosha);
+      setInput('editAgni', historyObj.agni);
+      setInput('editAma', historyObj.ama);
+      setInput('editKoshta', historyObj.koshta || historyObj.bowel_habits);
+      setInput('editNidra', historyObj.nidra || historyObj.sleep);
+      setInput('editAhara', historyObj.ahara || historyObj.diet);
+      setInput('editVihara', historyObj.vihara || historyObj.lifestyle);
+      setInput('editManasika', historyObj.manasika);
+      setInput('editAyushHistory', historyObj.ayush_specific_history);
 
       // Tab 5: Medical Coding
-      renderMedicalCodingTab(bundle.coding_suggestions);
+      renderMedicalCodingTab(bundle.coding_suggestions || []);
 
       // Tab 6: Previous Visits Timeline
-      renderTimelineTab(bundle.timeline);
+      renderTimelineTab(bundle.timeline || []);
 
     } catch (err) {
       console.error('[Load Patient Error]', err);
+      if (summaryEl) {
+        const isTimeout = err.name === 'AbortError';
+        summaryEl.innerHTML = `
+          <div class="alert-banner alert-warning" style="margin: 1.5rem 0; padding: 1.2rem 1.4rem; border-radius: 8px; border: 1.5px solid #f59e0b; background: #fffbeb;">
+            <div style="font-weight: 700; color: #92400e; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+              <span>⚠️ Clinical Summary Notice</span>
+            </div>
+            <p style="margin: 0 0 0.85rem 0; color: #78350f; font-size: 0.95rem; line-height: 1.5;">
+              ${isTimeout 
+                ? 'The AI summarization request timed out while generating the live draft. You can retry generating the summary, or inspect the transcripts and clinical records in the tabs above.' 
+                : (escapeHtml(err.message) || 'The clinical summary could not be retrieved at this moment. Please retry or inspect the transcripts.')}
+            </p>
+            <div style="display: flex; gap: 0.75rem; align-items: center;">
+              <button type="button" class="btn btn-secondary btn-sm" id="retrySummaryBtn" style="padding: 0.4rem 0.9rem; font-size: 0.88rem; font-weight: 700; cursor: pointer;">
+                🔄 Retry Summary Generation
+              </button>
+            </div>
+          </div>
+        `;
+        document.getElementById('retrySummaryBtn')?.addEventListener('click', () => {
+          loadPatientBundle(sessionId, true);
+        });
+      }
+    }
+  }
+
+  async function loadDedicatedAISummary(sessionId, forceRefresh = false) {
+    const summaryEl = document.getElementById('aiSummaryContent');
+    if (!summaryEl) return;
+
+    try {
+      const resp = await fetch(`/api/ai/summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, force_refresh: forceRefresh })
+      });
+      const data = await resp.json();
+      if (data.status === 'success' && data.summary_text) {
+        summaryEl.innerHTML = renderMarkdown(data.summary_text);
+      } else {
+        throw new Error(data.message || 'AI summary synthesis pending');
+      }
+    } catch (e) {
+      console.warn('[Dedicated AI Summary Warning]', e);
+      summaryEl.innerHTML = `
+        <div class="alert-banner alert-warning" style="margin: 1.5rem 0; padding: 1.2rem; border-radius: 8px;">
+          <strong style="color: #92400e;">⚠️ Clinical Summary Generation Notice</strong>
+          <p style="margin-top: 0.4rem; color: #78350f;">Unable to generate AI summary at this moment. Please review the transcripts and clinical history tabs.</p>
+          <button type="button" class="btn btn-secondary btn-sm" id="retrySummaryBtn2" style="margin-top: 0.5rem; cursor: pointer;">🔄 Retry</button>
+        </div>
+      `;
+      document.getElementById('retrySummaryBtn2')?.addEventListener('click', () => {
+        loadDedicatedAISummary(sessionId, true);
+      });
     }
   }
 
@@ -186,63 +256,191 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('reportsContent');
     container.innerHTML = '';
 
-    // Lab Tests Table
-    if (bundle.lab_reports && bundle.lab_reports.length > 0) {
+    const docs = bundle.documents || [];
+    const labs = bundle.lab_reports || [];
+    const rxs = bundle.prescriptions || [];
+
+    if (docs.length === 0 && labs.length === 0 && rxs.length === 0) {
+      container.innerHTML = '<div style="padding: 2.5rem; text-align: center; color: #64748b; background: #ffffff; border: 1px solid var(--ayush-border); border-radius: 8px;">No scanned documents, lab investigations, or historical prescriptions on file for this session.</div>';
+      return;
+    }
+
+    // Render each Scanned Medical Document with Structured Comparison View
+    if (docs.length > 0) {
+      docs.forEach((doc, idx) => {
+        let extracted = {};
+        try {
+          extracted = typeof doc.extracted_information === 'string' ? JSON.parse(doc.extracted_information) : (doc.extracted_information || {});
+        } catch(e) {
+          extracted = {};
+        }
+
+        const isLowConf = doc.ocr_confidence === 'low' || extracted.review_required;
+        const confBadgeClass = doc.ocr_confidence === 'high' ? 'ocr-badge-high' : (doc.ocr_confidence === 'medium' ? 'ocr-badge-med' : 'ocr-badge-low');
+        const confBadgeText = doc.ocr_confidence === 'low' ? '⚠️ LOW / REVIEW REQUIRED' : (doc.ocr_confidence === 'high' ? '✓ HIGH' : 'MEDIUM');
+
+        const docCard = document.createElement('div');
+        docCard.style.background = '#ffffff';
+        docCard.style.border = '1.5px solid var(--ayush-border)';
+        docCard.style.borderRadius = 'var(--radius-md)';
+        docCard.style.padding = '1.4rem';
+        docCard.style.marginBottom = '2rem';
+
+        let innerHtml = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.75rem;">
+            <div>
+              <span style="font-weight: 800; color: var(--ayush-primary); font-size: 1.1rem; text-transform: uppercase;">
+                📄 Scanned Document #${idx + 1}: ${(doc.document_type || 'MEDICAL REPORT').toUpperCase()}
+              </span>
+              <span style="color: #64748b; font-size: 0.85rem; margin-left: 0.8rem;">Uploaded: ${doc.created_at || ''}</span>
+            </div>
+            <div>
+              <span class="ocr-badge-confidence ${confBadgeClass}">
+                Confidence: ${confBadgeText}
+              </span>
+            </div>
+          </div>
+        `;
+
+        if (isLowConf) {
+          innerHtml += `
+            <div class="alert-banner alert-warning" style="margin-bottom: 1.2rem; font-weight: 600;">
+              ⚠️ Some information could not be reliably extracted. Please verify with the original document.
+            </div>
+          `;
+        }
+
+        // Comparison Container
+        innerHtml += `
+          <div class="ocr-compare-container" style="margin-bottom: 1rem;">
+            <!-- Left: Original Scanned Image -->
+            <div class="ocr-image-preview-box">
+              <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.4rem; font-weight: 700;">ORIGINAL SCANNED DOCUMENT</div>
+              <a href="${doc.file_path}" target="_blank" title="Click to view full image in new tab">
+                <img src="${doc.file_path}" alt="Document Image" />
+              </a>
+              <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.4rem;">🔍 Click to enlarge image</div>
+            </div>
+
+            <!-- Right: Structured Data -->
+            <div style="overflow-x: auto;">
+        `;
+
+        // Table for labs or prescriptions belonging to this doc or in extracted
+        const docLabs = (extracted.lab_tests && extracted.lab_tests.length > 0) ? extracted.lab_tests : labs.filter(l => l.document_id === doc.id);
+        const docRxs = (extracted.prescriptions && extracted.prescriptions.length > 0) ? extracted.prescriptions : rxs.filter(r => r.document_id === doc.id);
+
+        if (docLabs.length > 0) {
+          innerHtml += `
+            <h4 style="color: var(--ayush-primary); font-size: 1.05rem; margin-bottom: 0.6rem; font-weight: 800;">Extracted Laboratory Results</h4>
+            <table class="clinical-table">
+              <thead>
+                <tr>
+                  <th>Test Name</th>
+                  <th>Result</th>
+                  <th>Unit</th>
+                  <th>Reference Range</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${docLabs.map(l => {
+                  const val = l.value !== undefined ? l.value : (l.test_value || '');
+                  const isAbnormal = l.abnormal_flag === 1;
+                  const isUncertain = (l.confidence && String(l.confidence).includes('LOW')) || String(val).toUpperCase().includes('REVIEW');
+                  const badgeClass = isUncertain ? 'ocr-badge-low' : (isAbnormal ? 'badge-urgent' : 'badge-normal');
+                  const badgeText = isUncertain ? '⚠️ REVIEW REQUIRED' : (isAbnormal ? '⚠️ ABNORMAL' : 'Normal');
+                  return `
+                    <tr class="${isAbnormal ? 'abnormal-row' : ''}">
+                      <td><strong>${escapeHtml(l.test_name)}</strong></td>
+                      <td><strong>${escapeHtml(String(val))}</strong></td>
+                      <td>${escapeHtml(l.unit || '')}</td>
+                      <td>${escapeHtml(l.reference_range || 'N/A')}</td>
+                      <td><span class="${badgeClass}">${badgeText}</span></td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          `;
+        } else if (docRxs.length > 0) {
+          innerHtml += `
+            <h4 style="color: var(--ayush-primary); font-size: 1.05rem; margin-bottom: 0.6rem; font-weight: 800;">Extracted Historical Prescriptions</h4>
+            <table class="clinical-table">
+              <thead>
+                <tr>
+                  <th>Medicine Name</th>
+                  <th>Strength</th>
+                  <th>Dosage / Frequency</th>
+                  <th>Duration</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${docRxs.map(p => {
+                  const isUncertain = p.confidence && String(p.confidence).includes('LOW');
+                  const badgeClass = isUncertain ? 'ocr-badge-low' : 'ocr-badge-high';
+                  const badgeText = isUncertain ? '⚠️ REVIEW REQUIRED' : '✓ Historical';
+                  return `
+                    <tr>
+                      <td><strong>${escapeHtml(p.medicine_name)}</strong></td>
+                      <td>${escapeHtml(p.strength || 'N/A')}</td>
+                      <td>${escapeHtml(p.dosage || 'As directed')}</td>
+                      <td>${escapeHtml(p.duration || 'N/A')}</td>
+                      <td><span class="${badgeClass}">${badgeText}</span></td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          `;
+        } else {
+          innerHtml += `
+            <div style="padding: 1.5rem; background: #f8fafc; border-radius: 8px; border: 1px solid var(--ayush-border); text-align: center; color: #64748b;">
+              Document saved. Raw verbatim text available below.
+            </div>
+          `;
+        }
+
+        innerHtml += `
+            </div>
+          </div>
+
+          <!-- Expandable Raw OCR Text Section -->
+          <details style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.75rem 1rem;">
+            <summary style="cursor: pointer; font-weight: 700; color: #475569; font-size: 0.88rem;">
+              📄 View Raw OCR Text
+            </summary>
+            <pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.82rem; color: #334155; margin-top: 0.75rem; max-height: 220px; overflow-y: auto; background: #ffffff; padding: 0.8rem; border-radius: 4px; border: 1px solid #e2e8f0;">${escapeHtml(doc.ocr_text || 'No raw text extracted.')}</pre>
+          </details>
+        `;
+
+        docCard.innerHTML = innerHtml;
+        container.appendChild(docCard);
+      });
+    }
+
+    // Also display global lab tests if not tied to specific document
+    const orphanLabs = labs.filter(l => !l.document_id);
+    if (orphanLabs.length > 0) {
       container.innerHTML += `
-        <h4 style="margin-bottom: 0.5rem; color: var(--ayush-primary);">Extracted Laboratory Investigations</h4>
+        <h4 style="margin-bottom: 0.5rem; color: var(--ayush-primary);">Additional Laboratory Investigations</h4>
         <table class="clinical-table" style="margin-bottom: 2rem;">
           <thead>
             <tr><th>Test Name</th><th>Value</th><th>Reference Range</th><th>Status</th></tr>
           </thead>
           <tbody>
-            ${bundle.lab_reports.map(l => `
+            ${orphanLabs.map(l => `
               <tr class="${l.abnormal_flag === 1 ? 'abnormal-row' : ''}">
-                <td>${l.test_name}</td>
-                <td><strong>${l.value} ${l.unit || ''}</strong></td>
-                <td>${l.reference_range || 'N/A'}</td>
+                <td>${escapeHtml(l.test_name)}</td>
+                <td><strong>${escapeHtml(String(l.value))} ${escapeHtml(l.unit || '')}</strong></td>
+                <td>${escapeHtml(l.reference_range || 'N/A')}</td>
                 <td>${l.abnormal_flag === 1 ? '<span class="badge-urgent">⚠️ ABNORMAL</span>' : '<span class="badge-normal">Normal</span>'}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       `;
-    }
-
-    // Historical Prescriptions Table
-    if (bundle.prescriptions && bundle.prescriptions.length > 0) {
-      container.innerHTML += `
-        <h4 style="margin-bottom: 0.5rem; color: var(--ayush-primary);">Historical Prescriptions (Extracted Document)</h4>
-        <table class="clinical-table" style="margin-bottom: 2rem;">
-          <thead>
-            <tr><th>Medicine</th><th>Strength</th><th>Dosage</th><th>Duration</th></tr>
-          </thead>
-          <tbody>
-            ${bundle.prescriptions.map(p => `
-              <tr>
-                <td>${p.medicine_name}</td>
-                <td>${p.strength || 'N/A'}</td>
-                <td>${p.dosage || 'N/A'}</td>
-                <td>${p.duration || 'N/A'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-    }
-
-    if (bundle.documents && bundle.documents.length > 0) {
-      container.innerHTML += `<h4 style="margin-bottom: 0.5rem;">Scanned Document Images</h4><div style="display: flex; gap: 1rem; flex-wrap: wrap;">`;
-      bundle.documents.forEach(d => {
-        container.innerHTML += `
-          <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem; text-align: center;">
-            <a href="${d.file_path}" target="_blank">
-              <img src="${d.file_path}" style="width: 160px; height: 120px; object-fit: cover; border-radius: 4px;" />
-            </a>
-            <div style="font-size: 0.75rem; margin-top: 0.3rem;">${d.document_type.toUpperCase()}</div>
-          </div>
-        `;
-      });
-      container.innerHTML += `</div>`;
     }
   }
 
@@ -398,7 +596,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const res = await resp.json();
         alert(res.message);
-        loadQueue();
+        if (activeSessionId) {
+          loadPatientBundle(activeSessionId);
+        }
       } catch (err) {
         console.error('[Verification Error]', err);
         alert('Failed to verify clinical record.');
@@ -408,15 +608,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderMarkdown(md) {
     if (!md) return '';
-    return md
-      .replace(/^### (.*$)/gim, '<h3 style="color: var(--ayush-primary); margin-top: 1rem;">$1</h3>')
-      .replace(/^#### (.*$)/gim, '<h4 style="color: #1b794f; margin-top: 0.8rem;">$1</h4>')
+
+    // Convert markdown alerts: > [!NOTE] or > [!CAUTION]
+    let html = md
+      .replace(/>\s*\[!CAUTION\][\r\n]+((?:>.*[\r\n]*)+)/gi, (match, p1) => {
+        const content = p1.replace(/^>\s?/gm, '');
+        return `<div class="alert-banner alert-danger" style="margin: 1rem 0; border: 1.5px solid #ef4444; background: #fef2f2; color: #991b1b; padding: 0.9rem 1.2rem; border-radius: 6px;">${content}</div>`;
+      })
+      .replace(/>\s*\[!NOTE\][\r\n]+((?:>.*[\r\n]*)+)/gi, (match, p1) => {
+        const content = p1.replace(/^>\s?/gm, '');
+        return `<div class="alert-banner alert-info" style="margin: 1rem 0; background: #e0f2fe; border: 1.5px solid #0284c7; color: #0369a1; padding: 0.9rem 1.2rem; border-radius: 6px;">${content}</div>`;
+      });
+
+    // Parse Markdown tables
+    const tableRegex = /((?:\|[^\n\r]+\|(?:\r?\n|$))+)/g;
+    html = html.replace(tableRegex, (tableBlock) => {
+      const rows = tableBlock.trim().split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+      if (rows.length < 2) return tableBlock;
+      let headerHtml = '';
+      let bodyHtml = '';
+      let isHeader = true;
+
+      rows.forEach((row) => {
+        if (/^\|(?:\s*:?-+:?\s*\|)+$/.test(row)) {
+          isHeader = false;
+          return;
+        }
+        const cells = row.split('|').slice(1, -1).map(c => c.trim());
+        if (isHeader) {
+          headerHtml += '<tr>' + cells.map(c => `<th style="padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; text-align: left; font-size: 0.88rem; font-weight: 700;">${c}</th>`).join('') + '</tr>';
+        } else {
+          bodyHtml += '<tr>' + cells.map(c => `<td style="padding: 8px 12px; border: 1px solid #e2e8f0; font-size: 0.9rem;">${c}</td>`).join('') + '</tr>';
+        }
+      });
+
+      return `<div style="overflow-x: auto; margin: 1rem 0;"><table class="clinical-table" style="width: 100%; border-collapse: collapse; margin: 0.5rem 0;"><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table></div>`;
+    });
+
+    // Headers & inline formatting
+    html = html
+      .replace(/^### (.*$)/gim, '<h3 style="color: var(--ayush-primary); margin-top: 1.2rem; font-size: 1.25rem; font-weight: 800;">$1</h3>')
+      .replace(/^#### (.*$)/gim, '<h4 style="color: #1b794f; margin-top: 1rem; font-size: 1.05rem; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">$1</h4>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, '<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">$1</code>')
+      .replace(/`([^`]+)`/g, '<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.88rem; color: #0369a1;">$1</code>')
+      .replace(/\n\n+/g, '<br><br>')
       .replace(/\n/g, '<br>');
+
+    return html;
   }
 
   // Initial load
-  loadQueue();
+  if (window.initialSessionId) {
+    activeSessionId = window.initialSessionId;
+  } else if (patientSelect && patientSelect.value) {
+    activeSessionId = patientSelect.value;
+  }
+  
+  if (activeSessionId) {
+    loadPatientBundle(activeSessionId);
+  }
 });

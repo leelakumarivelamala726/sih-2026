@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Doctor Registration – Ministry of Ayush Smart MediKiosk{% endblock %}
+
+{% block content %}
+<div style="max-width: 580px; margin: 2rem auto;">
+  <div class="card-panel" style="border-top: 5px solid var(--ayush-primary);">
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: #e8f5e9; color: var(--ayush-primary); font-size: 2rem; margin-bottom: 1rem;">
+        🩺
+      </div>
+      <h2 class="section-title">Doctor Registration</h2>
+      <p class="section-subtitle">Dedicated portal registration for AYUSH Medical Officers & Consulting Physicians</p>
+    </div>
+
+    <form method="POST" action="/doctor/register" autocomplete="off">
+      <div class="form-group">
+        <label for="doctor_name">Doctor Name *</label>
+        <input 
+          type="text" 
+          id="doctor_name" 
+          name="doctor_name" 
+          class="form-control" 
+          placeholder="e.g. Dr. Rajesh Sharma, MD (Ayu)" 
+          value="{{ doctor_name or '' }}" 
+          required 
+          autofocus
+        />
+        <div class="form-note">Enter your full name and clinical qualifications.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="doctor_id">Doctor ID / License Number *</label>
+        <input 
+          type="text" 
+          id="doctor_id" 
+          name="doctor_id" 
+          class="form-control" 
+          placeholder="e.g. DOC-AYUSH-201 or REG-98432" 
+          value="{{ doctor_id or '' }}" 
+          required 
+          style="text-transform: uppercase;"
+        />
+        <div class="form-note">Must be unique across the clinical system.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Set Password *</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          class="form-control" 
+          placeholder="Create a secure password" 
+          required 
+          minlength="4"
+        />
+        <div class="form-note">Passwords are securely salted and hashed in database.</div>
+      </div>
+
+      <div class="form-group">
+        <label for="confirm_password">Confirm Password *</label>
+        <input 
+          type="password" 
+          id="confirm_password" 
+          name="confirm_password" 
+          class="form-control" 
+          placeholder="Re-enter the same password" 
+          required 
+          minlength="4"
+        />
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 1.15rem; padding: 1rem; margin-top: 1rem;">
+        <span>Register Doctor Account</span> ➔
+      </button>
+    </form>
+
+    <div style="text-align: center; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--ayush-border); display: flex; flex-direction: column; gap: 0.6rem;">
+      <p style="font-size: 0.95rem; color: var(--ayush-text-muted); margin: 0;">
+        Already registered as a Doctor? 
+        <a href="/doctor/login" style="color: var(--ayush-primary); font-weight: 700; text-decoration: none;">
+          Login to Doctor Portal
+        </a>
+      </p>
+      <p style="font-size: 0.85rem; color: #64748b; margin: 0;">
+        Patient seeking consultation? 
+        <a href="/login" style="color: #64748b; text-decoration: underline;">
+          Go to Patient Kiosk Login
+        </a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

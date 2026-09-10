@@ -12,9 +12,12 @@ Safety Principles:
 """
 
 import os
+AI_API_KEY = os.getenv("AI_API_KEY")
+
 import json
 import math
 import re
+import requests
 from typing import Dict, Any, Tuple, Optional, List, Set
 from database.db import (
     get_clinical_history,
@@ -23,6 +26,199 @@ from database.db import (
     get_db_connection
 )
 from services.language_service import normalize_dialect_and_slang
+
+def get_live_ai_key() -> Optional[str]:
+    """Retrieve AI_API_KEY from environment."""
+    return os.getenv("AI_API_KEY") or AI_API_KEY
+
+def check_live_ai_status() -> Dict[str, Any]:
+    """Check connectivity to live Prakriti-AI backend via AI_API_KEY."""
+    key = get_live_ai_key()
+    if not key or key == "your_ai_api_key_here":
+        return {
+            "live_ai_enabled": False,
+            "status": "offline_local_mode",
+            "message": "AI_API_KEY is not configured. Running in high-reliability local offline mode."
+        }
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={key}"
+    try:
+        resp = requests.post(
+            url,
+            json={"contents": [{"parts": [{"text": "Ping"}]}]},
+            timeout=8
+        )
+        if resp.status_code == 200:
+            return {
+                "live_ai_enabled": True,
+                "status": "online",
+                "provider": "Google Generative AI (Gemini 3.5 Flash)",
+                "latency_ms": int(resp.elapsed.total_seconds() * 1000),
+                "model": "gemini-3.5-flash"
+            }
+        else:
+            return {
+                "live_ai_enabled": False,
+                "status": "degraded",
+                "http_status": resp.status_code,
+                "message": "Fallback to local offline Prakriti-AI engine."
+            }
+    except Exception as e:
+        return {
+            "live_ai_enabled": False,
+            "status": "offline_fallback",
+            "error": str(e),
+            "message": "Fallback to local offline Prakriti-AI engine."
+        }
+
+def query_live_ai(
+    prompt: str,
+    system_instruction: Optional[str] = None,
+    response_json: bool = False,
+    timeout: int = 15
+) -> Optional[str]:
+    """
+    Query the live Google Gemini API using AI_API_KEY.
+    Tries stable models in sequence: gemini-3.5-flash, gemini-3-flash-preview, gemini-3.6-flash.
+    Returns the string text or None if offline/failed.
+    """
+    key = get_live_ai_key()
+    if not key or key == "your_ai_api_key_here":
+        return None
+
+    candidate_models = ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.6-flash"]
+    
+    for model in candidate_models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+        payload: Dict[str, Any] = {
+            "contents": [{"parts": [{"text": prompt}]}]
+        }
+        if system_instruction:
+            payload["systemInstruction"] = {
+                "parts": [{"text": system_instruction}]
+            }
+        if response_json:
+            payload["generationConfig"] = {
+                "responseMimeType": "application/json",
+                "temperature": 0.2
+            }
+        else:
+            payload["generationConfig"] = {
+                "temperature": 0.3
+            }
+
+        try:
+            resp = requests.post(url, json=payload, timeout=timeout)
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", "")
+        except Exception:
+            continue
+
+    return None
+
+def query_live_ai_patient_turn(
+    patient_input: str,
+    language: str,
+    session_id: int,
+    history: dict,
+    ai_question_count: int,
+    answered_fields: set,
+    detected_concepts: list
+) -> Optional[Dict[str, Any]]:
+    """
+    Use live Gemini model with AI_API_KEY to intelligently evaluate patient turn:
+    - Extracts multi-entities (symptoms, duration, severity, past conditions, Ayush parameters)
+    - Detects emergency red flags
+    - Formulates the next compassionate, clinically relevant question in the patient's language
+    - STRICT: Never diagnoses or prescribes medicines
+    - Guarantees minimum 10 questions before completion
+    """
+    system_instruction = (
+        "You are AYUSH KRITI, an empathetic and intelligent medical case-taking assistant for the Ministry of Ayush Smart MediKiosk in the Government of Bharat.\n"
+        "Your duty is to conduct a polite, structured clinical and AYUSH history-taking conversation with the patient before they see the doctor.\n"
+        "\nCRITICAL CLINICAL & SAFETY RULES:\n"
+        "1. HEALTH-RELATED QUESTIONS ONLY: You are strictly a medical case-taking assistant. Every question you ask MUST have a clear clinical purpose related to understanding the patient's health condition:\n"
+        "   - Current health problem & chief complaints\n"
+        "   - Nature, duration, onset, severity, and anatomical location of symptoms\n"
+        "   - Aggravating and relieving factors, and associated symptoms\n"
+        "   - Past medical illnesses, past surgeries, and hospitalizations\n"
+        "   - Current medications (allopathic and AYUSH), and drug/food allergies\n"
+        "   - Health-relevant lifestyle: sleep, diet, physical activity, and stress/mental wellbeing\n"
+        "   - Relevant AYUSH parameters (Agni/digestion, Koshta/bowels, Ama/heaviness, Prakriti/Vikriti constitutional aspects)\n"
+        "   NEVER ask general casual questions, entertainment questions, unnecessary social questions, or personal questions unrelated to healthcare.\n"
+        "   Before formulating any question, check: 'Is this question medically relevant to understanding the patient's health condition?' If NO, do NOT ask it.\n"
+        "2. NON-DIAGNOSTIC SAFETY: NEVER make a definitive medical diagnosis or name a specific disease.\n"
+        "3. ZERO PRESCRIPTIONS: NEVER prescribe, recommend, suggest, or name medications, treatments, or dosages independently.\n"
+        "4. RED-FLAG DETECTION: Detect critical emergency symptoms (e.g. crushing chest pain, sudden severe breathlessness, hemoptysis, acute paralysis, severe head injury) so the triage desk can be alerted.\n"
+        "5. EXACTLY ONE QUESTION AT A TIME: Keep each question concise, caring, and focused.\n"
+        "6. ZERO REPETITION: Never re-ask about details or symptoms the patient has already explained.\n"
+        "\nSPECIAL TELUGU LANGUAGE (language='te') CONVERSATION RULES:\n"
+        "- Communicate in natural, clear, polite, everyday spoken Telugu (సరళమైన, సహజమైన మాట్లాడే తెలుగు) as a caring healthcare professional speaking respectfully to a patient.\n"
+        "- Do NOT use awkward literal machine translations from English (e.g., NEVER say 'మీ అసౌకర్యం యొక్క స్వభావాన్ని వివరించగలరా?'; instead say 'మీకు ఉన్న ఇబ్బంది ఎలా అనిపిస్తోంది? మంటగా ఉందా, నొప్పిగా ఉందా, లేక బరువుగా అనిపిస్తుందా?').\n"
+        "- Do NOT use 'మీ నిద్ర వ్యవధి ఎంత?'; instead say 'మీరు సాధారణంగా రోజుకు ఎన్ని గంటలు నిద్రపోతారు?'.\n"
+        "- Avoid overly formal, literary, or bookish Telugu (గ్రంథిక భాష), and avoid obscure or incorrect regional slang.\n"
+        "- Do NOT mix unnecessary English words or sentences into Telugu.\n"
+        "- If a common medical term is universally understood in Telugu context (such as షుగర్, బీపీ, ఆపరేషన్, అలర్జీ, మాత్రలు), write it naturally in Telugu.\n"
+        "- Ensure respectful patient-friendly honorifics (మీకు, మీరు, చెప్పండి, అనిపిస్తుందా).\n"
+        "- Maintain precise clinical meaning with effortless conversational warmth.\n"
+        "7. Return strictly valid JSON."
+    )
+
+    prompt = f"""
+Patient's current message: "{patient_input}"
+Patient's language: {language} (Options: en for English, hi for Hindi, te for Telugu, etc.)
+Questions asked so far: {ai_question_count}
+Currently answered fields in clinical history: {list(answered_fields)}
+Existing structured history: {json.dumps(history, default=str)}
+Vernacular concepts detected: {json.dumps(detected_concepts, default=str)}
+
+Return a JSON object with:
+1. "extracted_entities": key-value dictionary of clinical entities found in the patient's message. Keys can include:
+   - "chief_complaint": string (if this is their primary reason for visit)
+   - "onset": string (when it started)
+   - "duration": string (how long it has lasted)
+   - "severity": string (e.g. "Mild", "Moderate", "Severe", or "7/10")
+   - "location": string (anatomical region)
+   - "aggravating_factors": string (what worsens it)
+   - "relieving_factors": string (what relieves it)
+   - "associated_symptoms": string (other accompanying symptoms)
+   - "past_medical_history": string (chronic conditions like diabetes, HTN, asthma)
+   - "past_surgical_history": string (past surgeries)
+   - "medication_history": string (current medications)
+   - "allergy_history": string (known drug/food allergies)
+   - "agni": string ("mandagni" [poor], "tikshnagni" [excessive], "samagni" [balanced], "vishamagni" [irregular])
+   - "appetite": string
+   - "koshta": string ("krura" [hard/constipated], "mridu" [soft/frequent], "madhyama" [normal])
+   - "bowel_habits": string
+   - "ama": string ("Sama" [sluggish/heavy/coated tongue] or "Nirama")
+   - "nidra": string ("Sound sleep" or "Anidra / Disturbed")
+   - "sleep": string
+   - "ahara": string (dietary pattern)
+   - "vihara": string (physical activity/lifestyle)
+   - "manasika": string (stress/anxiety/mental state)
+2. "red_flag": boolean (true if emergency symptoms requiring urgent doctor/triage attention are detected)
+3. "red_flag_reason": string or null
+4. "field_name": string (the clinical field being explored next, e.g. "symptom_nature", "onset_duration", "severity_location", "aggravating_factors", "ayush_agni", "ayush_koshta", "ayush_nidra", etc.)
+5. "next_question": string (the next empathetic, medically relevant question in language '{language}'. If completed, provide a courteous closing statement for consultation.)
+6. "is_completed": boolean (true ONLY if questions asked so far >= 10 and core clinical history is satisfactorily gathered; otherwise false)
+"""
+
+    raw_response = query_live_ai(prompt, system_instruction=system_instruction, response_json=True, timeout=12)
+    if not raw_response:
+        return None
+
+    try:
+        parsed = json.loads(raw_response)
+        if isinstance(parsed, dict) and "next_question" in parsed:
+            return parsed
+    except Exception:
+        pass
+    return None
 
 # Paths to models & rules
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models", "prakriti_ai")
@@ -38,13 +234,14 @@ with open(ENTITY_RULES_PATH, "r", encoding="utf-8") as f:
     ENTITY_RULES = json.load(f)
 
 # Comprehensive 20-Stage Clinical & AYUSH Question Ontology
+# Telugu questions are crafted in natural, polite, everyday spoken healthcare Telugu (సరళమైన మాట్లాడే తెలుగు)
 QUESTION_CATALOG = [
     {
         "field": "chief_complaint",
         "question": {
             "en": "Please tell me what health problem or symptoms you are experiencing today.",
             "hi": "कृपया बताएं कि आज आपको क्या स्वास्थ्य समस्या या लक्षण हो रहे हैं।",
-            "te": "దయచేసి ఈ రోజు మీకు ఉన్న ఆరోగ్య సమస్య లేదా లక్షణాలు ఏమిటో వివరంగా చెప్పండి."
+            "te": "నమస్కారం, ఈ రోజు మీకు ఎలాంటి ఆరోగ్య సమస్య లేదా ఇబ్బంది ఉంది? దయచేసి వివరంగా చెప్పండి."
         }
     },
     {
@@ -52,7 +249,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "What does the discomfort feel like? Is it sharp, dull, burning, cramping, or throbbing?",
             "hi": "यह दर्द या तकलीफ किस प्रकार की है? क्या इसमें जलन, चुभन, ऐंठन या भारीपन है?",
-            "te": "ఆ బాధ లేదా నొప్పి ఎలా అనిపిస్తుంది? మంటగా ఉందా, పోటుగా ఉందా, లేదా బరువుగా ఉందా?"
+            "te": "మీకు ఉన్న ఇబ్బంది ఎలా అనిపిస్తోంది? మంటగా ఉందా, నొప్పిగా ఉందా, లేక బరువుగా అనిపిస్తుందా?"
         }
     },
     {
@@ -60,7 +257,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "When did this problem start, and did it begin suddenly or develop gradually?",
             "hi": "यह समस्या कब शुरू हुई, और क्या यह अचानक हुई या धीरे-धीरे बढ़ी?",
-            "te": "ఈ సమస్య ఎప్పుడు ప్రారంభమైంది? ఒక్కసారిగా వచ్చిందా లేక క్రమంగా పెరిగిందా?"
+            "te": "ఈ సమస్య ఎప్పటి నుంచి మొదలైంది? ఒక్కసారిగా వచ్చిందా లేక కొద్దికొద్దిగా పెరిగిందా?"
         }
     },
     {
@@ -68,7 +265,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "Where exactly is the symptom located, and on a scale of 1 to 10, how severe is it?",
             "hi": "यह तकलीफ ठीक किस जगह पर है, और 1 से 10 के पैमाने पर यह कितनी तीव्र है?",
-            "te": "బాధ లేదా నొప్పి సరిగ్గా ఎక్కడ ఉంది? 1 నుండి 10 స్కేలులో ఇది ఎంత తీవ్రంగా ఉంది?"
+            "te": "ఈ బాధ లేదా నొప్పి శరీరంలో సరిగ్గా ఎక్కడ ఉంది? 1 నుండి 10 వరకు చూస్తే తీవ్రత ఎంతవరకు ఉండవచ్చు?"
         }
     },
     {
@@ -76,7 +273,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "What makes your symptoms worse (e.g. eating spicy food, exertion, posture, or weather)?",
             "hi": "किस वजह से तकलीफ बढ़ जाती है (जैसे तीखा खाना, चलने-फिरने से, झुकने से या मौसम से)?",
-            "te": "ఏం చేసినప్పుడు మీ లక్షణాలు ఎక్కువవుతున్నాయి (కారం/నూనె ఆహారం, నడవడం, వంగడం లేదా చలి)?"
+            "te": "ఏం చేసినప్పుడు మీ సమస్య ఎక్కువగా అనిపిస్తోంది? (ఉదాహరణకు: కారం ఆహారం తిన్నప్పుడు, నడిచినప్పుడు లేదా పడుకున్నప్పుడు?)"
         }
     },
     {
@@ -84,7 +281,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "Does anything provide relief (e.g. resting, warm water, lying down, or specific food)?",
             "hi": "किस चीज़ से कुछ आराम मिलता है (जैसे आराम करने से, गर्म पानी से या लेटने से)?",
-            "te": "ఏం చేస్తే కాస్త ఉపశమనం లభిస్తుంది (విశ్రాంతి, వేడి నీరు, పడుకోవడం వంటివి)?"
+            "te": "ఏం చేస్తే మీకు కాస్త ఉపశమనం లభిస్తోంది? (విశ్రాంతి తీసుకుంటేనా, వేడి నీళ్లు తాగితేనా, లేక విశ్రాంతిగా పడుకుంటేనా?)"
         }
     },
     {
@@ -92,7 +289,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "Are you experiencing any other symptoms, such as fever, chills, nausea, vomiting, dizziness, or breathlessness?",
             "hi": "क्या बुखार, कंपकंपी, जी मिचलाना, उल्टी, चक्कर या सांस फूलने जैसे कोई अन्य लक्षण भी हैं?",
-            "te": "మీకు జ్వరం, చలి, వికారం, వాంతులు, కళ్లు తిరగడం లేదా ఆయాసం వంటి ఇతర లక్షణాలు ఏమైనా ఉన్నాయా?"
+            "te": "దీనితో పాటు మీకు జ్వరం, చలి, వికారం, వాంతులు, తలతిరగడం లేదా ఆయాసం వంటి ఇతర ఇబ్బందులు ఏమైనా ఉన్నాయా?"
         }
     },
     {
@@ -108,7 +305,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "Do you have any long-term medical conditions like diabetes, high blood pressure, asthma, or thyroid disorders?",
             "hi": "क्या आपको डायबिटीज, हाई ब्लड प्रेशर, दमा या थायरॉइड जैसी कोई पुरानी बीमारी है?",
-            "te": "మీకు గతంలో షుగర్, రక్తపోటు (BP), ఆస్తమా లేదా థైరాయిడ్ వంటి దీర్ఘకాలిక సమస్యలు ఉన్నాయా?"
+            "te": "మీకు గతంలో షుగర్ (మధుమేహం), బీపీ (రక్తపోటు), ఆస్తమా లేదా థైరాయిడ్ వంటి దీర్ఘకాలిక సమస్యలు ఏమైనా ఉన్నాయా?"
         }
     },
     {
@@ -116,7 +313,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "Have you undergone any surgeries, major medical procedures, or hospitalizations?",
             "hi": "क्या पहले आपकी कोई सर्जरी, ऑपरेशन या अस्पताल में भर्ती होने का इतिहास है?",
-            "te": "గతంలో మీకు ఏదైనా ఆపరేషన్ లేదా శస్త్రచికిత్స జరిగిందా?"
+            "te": "గతంలో మీకు ఏదైనా ఆపరేషన్ జరిగిందా? ఎప్పుడైనా ఆసుపత్రిలో చేరాల్సి వచ్చిందా?"
         }
     },
     {
@@ -124,7 +321,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "What medications, tablets, or Ayurvedic herbal remedies are you currently taking?",
             "hi": "वर्तमान में आप कौन सी दवाएं, गोलियां या आयुर्वेदिक औषधियां ले रहे हैं?",
-            "te": "మీరు ప్రస్తుతం ఏవైనా ఇంగ్లీష్ మందులు, మాత్రలు లేదా ఆయుర్వేద ఔషధాలు వాడుతున్నారా?"
+            "te": "మీరు ప్రస్తుతం రోజువారీగా ఏవైనా ఇంగ్లీష్ మందులు, మాత్రలు లేదా ఆయుర్వేద ఔషధాలు వాడుతున్నారా?"
         }
     },
     {
@@ -140,7 +337,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "Does anyone in your direct family have a history of diabetes, hypertension, heart disease, or asthma?",
             "hi": "क्या आपके परिवार में किसी को डायबिटीज, हृदय रोग, ब्लड प्रेशर या दमे की समस्या रही है?",
-            "te": "మీ కుటుంబంలో ఎవరికైనా షుగర్, గుండె జబ్బులు, బీపీ లేదా ఆస్తమా ఉన్నాయా?"
+            "te": "మీ కుటుంబంలో ఎవరికైనా షుగర్, బీపీ, గుండె జబ్బులు లేదా ఆస్తమా సమస్యలు ఉన్నాయా?"
         }
     },
     {
@@ -148,7 +345,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "To assess your digestive fire (Agni): How is your appetite—is it poor (Mandagni), sharp (Tikshnagni), or irregular (Vishamagni)?",
             "hi": "आपकी पाचक अग्नि को समझने के लिए: आपकी भूख कैसी है—कम (मंदाग्नि), बहुत तेज (तीक्ष्णाग्नि) या घटती-बढ़ती (विषमाग्नि)?",
-            "te": "మీ జీర్ణక్రియను (అగ్ని) అంచనా వేయడానికి: మీ ఆకలి ఎలా ఉంది—తక్కువగా ఉందా, చాలా ఎక్కువగా ఉందా, లేదా హెచ్చుతగ్గులుగా ఉందా?"
+            "te": "మీ జీర్ణశక్తి మరియు ఆకలి ఎలా ఉన్నాయి? ఆకలి తక్కువగా ఉందా, ఎక్కువగా ఉందా, లేదా సమయానికి కాకుండా హెచ్చుతగ్గులుగా ఉందా?"
         }
     },
     {
@@ -156,7 +353,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "Do you feel heavy in the abdomen after food, have a coated tongue, bad breath, or sluggishness (Ama signs)?",
             "hi": "क्या भोजन के बाद पेट भारी रहता है, जीभ पर सफेद मैल जमती है या शरीर में भारीपन/आलस रहता है?",
-            "te": "ఆహారం తిన్నాక కడుపులో బరువుగా ఉండటం, నాలుకపై తెల్లటి పొర, నీరసం వంటివి ఉంటున్నాయా?"
+            "te": "భోజనం చేశాక కడుపులో బరువుగా ఉండటం, నాలుకపై తెల్లటి పొర రావడం, లేదా నీరసంగా ఉండటం జరుగుతోందా?"
         }
     },
     {
@@ -164,7 +361,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "How are your bowel habits (Koshta)—are stools hard/infrequent (Krura), soft/frequent (Mridu), or normal once daily?",
             "hi": "पेट साफ होने की स्थिति (कोष्ठ) कैसी है—कब्ज/कड़ा मल, बार-बार ढीला मल, या दिन में एक बार सामान्य रूप से?",
-            "te": "మీ మలవిసర్జన (కోష్ఠ) ఎలా ఉంది—గట్టిగా మలబద్ధకంలా ఉందా, వదులుగా ఉందా, లేదా రోజుకు ఒకసారి సక్రమంగా అవుతోందా?"
+            "te": "మీకు ప్రతిరోజూ మలవిసర్జన (మోషన్) సాఫీగా అవుతోందా? మలబద్ధకం లేదా విరోచనాలు ఏమైనా ఉన్నాయా?"
         }
     },
     {
@@ -172,7 +369,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "How is your sleep (Nidra)—do you fall asleep easily, or do you experience broken sleep or insomnia?",
             "hi": "आपकी नींद (निद्रा) कैसी है—क्या आसानी से नींद आ जाती है, या रात में बार-बार टूटती है/अनिद्रा रहती है?",
-            "te": "మీ నిద్ర (నిద్ర) ఎలా ఉంది—పడుకోగానే నిద్రపడుతుందా, లేదా రాత్రిపూట మెలకువలు వస్తూ నిద్రలేమి ఉందా?"
+            "te": "మీరు సాధారణంగా రోజుకు ఎన్ని గంటలు నిద్రపోతారు? పడుకోగానే నిద్రపడుతుందా, లేదా రాత్రిపూట మెలకువలు వస్తూ నిద్రలేమి ఉందా?"
         }
     },
     {
@@ -180,7 +377,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "Tell me about your daily routine: What are your regular food habits, and do you engage in regular physical exercise (Vyayama)?",
             "hi": "आपके खान-पान और दिनचर्या के बारे में बताएं: क्या आप नियमित व्यायाम या सैर करते हैं?",
-            "te": "మీ ఆహారపు అలవాట్లు మరియు దినచర్య ఏమిటి? రోజూ వ్యాయామం లేదా నడక చేస్తారా?"
+            "te": "మీ ఆహారపు అలవాట్లు మరియు దినచర్య ఎలా ఉంటాయి? రోజూ వ్యాయామం, నడక లేదా యోగా వంటివి చేస్తారా?"
         }
     },
     {
@@ -188,7 +385,7 @@ QUESTION_CATALOG = [
         "question": {
             "en": "How has your mental state been recently—are you experiencing excessive stress, anxiety, irritability, or mood swings?",
             "hi": "हाल ही में आपकी मानसिक स्थिति कैसी है—क्या अत्यधिक तनाव, चिंता, चिड़चिड़ापन या उदासी महसूस हो रही है?",
-            "te": "ఇటీవల మీ మానసిక స్థితి ఎలా ఉంది—తీవ్రమైన ఒత్తిడి, ఆందోళన లేదా కోపం వంటివి అనిపిస్తున్నాయా?"
+            "te": "ఇటీవల మీ మానసిక స్థితి ఎలా ఉంది? ఎక్కువ మానసిక ఒత్తిడి, ఆందోళన లేదా చిరాకు వంటివి అనిపిస్తున్నాయా?"
         }
     }
 ]
@@ -196,7 +393,7 @@ QUESTION_CATALOG = [
 COMPLETION_MESSAGE = {
     "en": "Thank you. I have structured your comprehensive clinical and AYUSH history for the physician. You may now review or edit your information, scan previous documents, or proceed to consultation.",
     "hi": "धन्यवाद। चिकित्सक के परामर्श हेतु आपका सम्पूर्ण नैदानिक एवं आयुष इतिहास तैयार कर लिया गया है। अब आप अपनी जानकारी की समीक्षा कर सकते हैं या पिछली रिपोर्ट स्कैन कर सकते हैं।",
-    "te": "ధన్యవాదాలు. వైద్యుల పరిశీలన కోసం మీ సమగ్ర ఆరోగ్య మరియు ఆయుష్ వివరాలు సిద్ధం చేయబడ్డాయి. ఇప్పుడు మీరు మీ వివరాలను సరిచూసుకోవచ్చు లేదా పాత రిపోర్టులు స్కాన్ చేయవచ్చు."
+    "te": "ధన్యవాదాలు. వైద్యుల పరిశీలన కోసం మీ ఆరోగ్య వివరాలు సిద్ధం చేయబడ్డాయి. ఇప్పుడు మీరు మీ వివరాలను సరిచూసుకోవచ్చు లేదా పాత రిపోర్టులు స్కాన్ చేయవచ్చు."
 }
 
 def clean_and_tokenize(text: str) -> List[str]:
@@ -484,8 +681,8 @@ def process_patient_turn(
     2. Normalize regional dialect/slangs (e.g. Telugu/Hindi variations).
     3. Detect emergency red flags.
     4. Extract multi-entities (symptoms, duration, severity, AYUSH traits).
-    5. Update structured clinical_history.
-    6. Select the next relevant question (skipping already answered fields).
+    5. Query live Prakriti-AI via AI_API_KEY with robust local fallback.
+    6. Update structured clinical_history.
     7. Guarantee at least 10 relevant questions before completion.
     8. Log AI question in transcripts table.
     """
@@ -505,7 +702,7 @@ def process_patient_turn(
     norm_result = normalize_dialect_and_slang(patient_input, lang=language) if not is_initial_call else {"concepts": [], "red_flag": False}
     detected_concepts = norm_result.get("concepts", [])
 
-    # 3. Red flag safety evaluation
+    # 3. Red flag safety evaluation (Local rules)
     red_flags = detect_red_flags(patient_input) if not is_initial_call else []
     if norm_result.get("red_flag"):
         for c in detected_concepts:
@@ -518,18 +715,14 @@ def process_patient_turn(
                 })
 
     is_urgent = len(red_flags) > 0
-    if is_urgent:
-        with get_db_connection() as conn:
-            conn.execute(
-                "UPDATE patient_sessions SET priority_level = 'urgent' WHERE id = ?",
-                (session_id,)
-            )
-            conn.commit()
 
     # 4. Multi-entity extraction and update
     updates = {}
     multi_entities = {}
+    live_result = None
+
     if not is_initial_call:
+        # Run local rule-based entity extraction first
         multi_entities = extract_multi_entities(patient_input)
         updates.update(multi_entities)
 
@@ -540,6 +733,42 @@ def process_patient_turn(
             if detected_concepts:
                 notes = [f"{c['original_phrase']} [{c['region']} -> {c['clinical_concept']}]" for c in detected_concepts]
                 updates["history_of_present_illness"] = f"Vernacular concepts: {'; '.join(notes)}"
+
+        # Query Live AI if available
+        with get_db_connection() as conn:
+            ai_count_now = conn.execute(
+                "SELECT COUNT(*) FROM transcripts WHERE session_id = ? AND speaker = 'ai'",
+                (session_id,)
+            ).fetchone()[0]
+
+        answered_fields = get_already_answered_fields(history)
+        live_result = query_live_ai_patient_turn(
+            patient_input=patient_input,
+            language=language,
+            session_id=session_id,
+            history=history,
+            ai_question_count=ai_count_now,
+            answered_fields=answered_fields,
+            detected_concepts=detected_concepts
+        )
+
+        if live_result:
+            # Merge live AI extracted entities
+            live_entities = live_result.get("extracted_entities") or {}
+            for k, v in live_entities.items():
+                if v and str(v).strip():
+                    updates[k] = str(v).strip()
+                    multi_entities[k] = str(v).strip()
+
+            # Check if live AI triggered a red flag
+            if live_result.get("red_flag"):
+                is_urgent = True
+                red_flags.append({
+                    "pattern_matched": patient_input[:50],
+                    "concern": live_result.get("red_flag_reason") or "Emergency symptom detected by live clinical evaluation",
+                    "action": "Immediate clinical attention advised.",
+                    "priority": "urgent"
+                })
 
         # Synthesize AYUSH specific summary string if AYUSH fields extracted
         ayush_parts = []
@@ -560,13 +789,34 @@ def process_patient_turn(
         if updates:
             update_clinical_history(session_id, updates)
 
-    # 5. Fetch updated history and select next question
+    # If urgent, set priority_level
+    if is_urgent:
+        with get_db_connection() as conn:
+            conn.execute(
+                "UPDATE patient_sessions SET priority_level = 'urgent' WHERE id = ?",
+                (session_id,)
+            )
+            conn.commit()
+
+    # 5. Determine next question (Live AI if available, otherwise local question catalog)
     updated_history = get_clinical_history(session_id) or {}
-    field_name, next_question_text, is_completed = select_next_question(
-        session_id=session_id,
-        history=updated_history,
-        language=language
-    )
+    
+    with get_db_connection() as conn:
+        ai_question_count = conn.execute(
+            "SELECT COUNT(*) FROM transcripts WHERE session_id = ? AND speaker = 'ai'",
+            (session_id,)
+        ).fetchone()[0]
+
+    if live_result and live_result.get("next_question"):
+        field_name = live_result.get("field_name", "live_clinical_intake")
+        next_question_text = live_result["next_question"]
+        is_completed = bool(live_result.get("is_completed")) and (ai_question_count >= 10)
+    else:
+        field_name, next_question_text, is_completed = select_next_question(
+            session_id=session_id,
+            history=updated_history,
+            language=language
+        )
 
     # If urgent red flag detected, prepend emergency notice
     ai_response_text = ""
@@ -594,7 +844,7 @@ def process_patient_turn(
     if is_completed:
         with get_db_connection() as conn:
             conn.execute(
-                "UPDATE patient_sessions SET status = 'ready_for_doctor' WHERE id = ?",
+                "UPDATE patient_sessions SET status = 'AI Completed' WHERE id = ?",
                 (session_id,)
             )
             conn.commit()
@@ -608,7 +858,7 @@ def process_patient_turn(
 
     return {
         "status": "success",
-        "ai_status": "🔴 Emergency Alert" if is_urgent else "🟢 Prakriti-AI Active",
+        "ai_status": "🔴 Emergency Alert" if is_urgent else ("🟢 Live AYUSH KRITI Active" if (live_result or os.getenv("AI_API_KEY")) else "🟢 AYUSH KRITI Active"),
         "current_field": field_name,
         "questions_asked_count": ai_count,
         "is_completed": is_completed,

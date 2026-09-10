@@ -334,3 +334,70 @@
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Voice & TTS Conversation Controls */
+.voice-global-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: var(--radius-full);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid var(--ayush-border);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.voice-global-toggle-btn.voice-on {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #6ee7b7;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.15);
+}
+
+.voice-global-toggle-btn.voice-off {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+.voice-global-toggle-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(0.97);
+}
+
+/* Small Speaker / Replay / Mute Button for AI message */
+.msg-speaker-btn {
+  background: #e2e8f0;
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 3px 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ayush-primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  transition: all 0.2s ease;
+}
+
+.msg-speaker-btn:hover {
+  background: #cbd5e1;
+  transform: scale(1.05);
+}
+
+.msg-speaker-btn.is-speaking {
+  background: #fee2e2;
+  color: #b91c1c;
+  animation: pulseSpeaking 1.2s infinite ease-in-out;
+}
+
+@keyframes pulseSpeaking {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+  100% { transform: scale(1); opacity: 1; }
+}

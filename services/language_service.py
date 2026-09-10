@@ -32,19 +32,19 @@ SUPPORTED_LANGUAGES = {
 CONSENT_TEXTS = {
     "en": {
         "title": "Patient Consent & Clinical Data Notice",
-        "description": "Welcome to Ministry of Ayush Smart MediKiosk. Prakriti-AI will assist you in preparing your clinical history before consulting the physician. The AI does NOT provide a final medical diagnosis and does NOT prescribe medicines. A qualified doctor will review, verify, and finalize your health record.",
+        "description": "Welcome to Ministry of Ayush Smart MediKiosk. AYUSH KRITI will assist you in preparing your clinical history before consulting the physician. The AI does NOT provide a final medical diagnosis and does NOT prescribe medicines. A qualified doctor will review, verify, and finalize your health record.",
         "button": "I Understand and Consent",
         "decline": "Decline & Exit"
     },
     "hi": {
         "title": "रोगी सहमति एवं नैदानिक डेटा सूचना",
-        "description": "आयुष मंत्रालय स्मार्ट मेडिकियोस्क में आपका स्वागत है। प्रकृति-एआई डॉक्टर से मिलने से पहले आपका नैदानिक इतिहास तैयार करने में सहायता करेगा। एआई कोई अंतिम निदान या दवा नहीं देता है। एक योग्य डॉक्टर आपके रिकॉर्ड की समीक्षा और पुष्टि करेंगे।",
+        "description": "आयुष मंत्रालय स्मार्ट मेडिकियोस्क में आपका स्वागत है। आयुष कृति (AYUSH KRITI) डॉक्टर से मिलने से पहले आपका नैदानिक इतिहास तैयार करने में सहायता करेगा। एआई कोई अंतिम निदान या दवा नहीं देता है। एक योग्य डॉक्टर आपके रिकॉर्ड की समीक्षा और पुष्टि करेंगे।",
         "button": "मैं समझता/समझती हूँ और सहमत हूँ",
         "decline": "अस्वीकार करें"
     },
     "te": {
         "title": "రోగి సమ్మతి మరియు వైద్య సమాచార ప్రకటన",
-        "description": "ఆయుష్ మంత్రిత్వ శాఖ స్మార్ట్ మెడికియోస్క్‌కు స్వాగతం. ప్రకృతి-AI మీ వైద్యుడిని సంప్రదించడానికి ముందు మీ ఆరోగ్య చరిత్రను సేకరించడంలో సహాయపడుతుంది. AI వ్యాధి నిర్ధారణ లేదా మందుల ప్రిస్క్రిప్షన్ ఇవ్వదు. అర్హత కలిగిన వైద్యుడు ప్రతి వివరాలను సమీక్షించి ధృవీకరిస్తారు.",
+        "description": "ఆయుష్ మంత్రిత్వ శాఖ స్మార్ట్ మెడికియోస్క్‌కు స్వాగతం. ఆయుష్ కృతి (AYUSH KRITI) డాక్టర్‌ను సంప్రదించడానికి ముందు మీ ఆరోగ్య వివరాలను సేకరించడంలో సహాయపడుతుంది. ఈ సహాయకారి ఎటువంటి తుది వ్యాధి నిర్ధారణ లేదా మందుల ప్రిస్క్రిప్షన్ ఇవ్వదు. అర్హత కలిగిన వైద్యుడు ప్రతి వివరాలను సమీక్షించి ధృవీకరిస్తారు.",
         "button": "నేను అర్థం చేసుకున్నాను మరియు అంగీకరిస్తున్నాను",
         "decline": "తిరస్కరించండి"
     }

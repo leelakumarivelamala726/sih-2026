@@ -170,9 +170,20 @@ CREATE TABLE IF NOT EXISTS doctor_reviews (
     FOREIGN KEY (session_id) REFERENCES patient_sessions(id) ON DELETE CASCADE
 );
 
+-- Doctor Accounts Table
+CREATE TABLE IF NOT EXISTS doctors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doctor_name TEXT NOT NULL,
+    doctor_id TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes for fast patient lookup and doctor dashboard queries
 CREATE INDEX IF NOT EXISTS idx_patients_abha ON patients(abha_id);
 CREATE INDEX IF NOT EXISTS idx_patients_phone ON patients(phone_number);
 CREATE INDEX IF NOT EXISTS idx_sessions_patient ON patient_sessions(patient_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON patient_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_transcripts_session ON transcripts(session_id);
+CREATE INDEX IF NOT EXISTS idx_doctors_doctor_id ON doctors(doctor_id);

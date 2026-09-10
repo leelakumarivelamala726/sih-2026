@@ -1,6 +1,7 @@
 /**
  * Ministry of Ayush – Smart MediKiosk
- * Prakriti-AI Interactive Case-Taking Dialogue
+ * AYUSH KRITI Interactive Case-Taking Dialogue
+ * Integrates automated Text-to-Speech (TTS) and Speech-to-Text (STT) voice conversation
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -14,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const aiStatusIndicator = document.getElementById('aiStatusIndicator');
   const emergencyBanner = document.getElementById('emergencyBanner');
   const scanLinkBtn = document.getElementById('scanLinkBtn');
+  const globalVoiceToggle = document.getElementById('globalVoiceToggle');
+  const voiceNarrationToggle = document.getElementById('voiceNarrationToggle');
 
   if (!chatInterface) return;
 
@@ -23,14 +26,78 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const speechEngine = new window.PrakritiSpeechEngine(bcp47);
 
+  // Track duplicate speech prevention
+  let lastAutoSpokenText = '';
+
+  // Initialize global voice narration state
+  if (typeof window.enableVoiceNarration === 'undefined') {
+    window.enableVoiceNarration = true;
+  }
+
+  // Synchronize Global Voice Toggle UI controls
+  function updateVoiceToggleUI(enabled) {
+    window.enableVoiceNarration = enabled;
+    if (voiceNarrationToggle) {
+      voiceNarrationToggle.checked = enabled;
+    }
+    if (globalVoiceToggle) {
+      if (enabled) {
+        globalVoiceToggle.classList.remove('voice-off');
+        globalVoiceToggle.classList.add('voice-on');
+        globalVoiceToggle.innerHTML = '🔊 Voice: ON';
+        globalVoiceToggle.title = 'AI Voice is ON (Click to Mute)';
+      } else {
+        globalVoiceToggle.classList.remove('voice-on');
+        globalVoiceToggle.classList.add('voice-off');
+        globalVoiceToggle.innerHTML = '🔇 Voice: OFF';
+        globalVoiceToggle.title = 'AI Voice is OFF (Click to Turn ON)';
+      }
+    }
+  }
+
+  // Initialize toggle buttons state
+  updateVoiceToggleUI(window.enableVoiceNarration);
+
+  if (globalVoiceToggle) {
+    globalVoiceToggle.addEventListener('click', () => {
+      const newState = !window.enableVoiceNarration;
+      updateVoiceToggleUI(newState);
+      if (!newState) {
+        window.stopAISpeech();
+        resetAllSpeakerButtons();
+        setStatus('active');
+      }
+    });
+  }
+
+  if (voiceNarrationToggle) {
+    voiceNarrationToggle.addEventListener('change', (e) => {
+      const newState = e.target.checked;
+      updateVoiceToggleUI(newState);
+      if (!newState) {
+        window.stopAISpeech();
+        resetAllSpeakerButtons();
+        setStatus('active');
+      }
+    });
+  }
+
+  function resetAllSpeakerButtons() {
+    document.querySelectorAll('.msg-speaker-btn').forEach(btn => {
+      btn.classList.remove('is-speaking');
+      btn.innerHTML = '🔊 <span>Listen</span>';
+      btn.title = 'Listen / Replay response';
+    });
+  }
+
   // START Button Handler
   if (startBtn) {
     startBtn.addEventListener('click', () => {
       welcomeCard.style.display = 'none';
       chatInterface.style.display = 'grid';
 
-      // Set 🟢 AI Active
-      setStatus('active', '🟢 Prakriti-AI Active');
+      // Show AI Active indicator
+      setStatus('active');
 
       // Fetch initial question if messages empty
       if (chatMessages.children.length === 0) {
@@ -41,11 +108,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setStatus(state) {
     if (!aiStatusIndicator) return;
+    aiStatusIndicator.style.display = 'inline-flex';
     aiStatusIndicator.className = 'ai-status-pill';
 
     if (state === 'active') {
       aiStatusIndicator.classList.add('ai-status-active');
-      aiStatusIndicator.innerHTML = `<span class="pulse-dot"></span> 🟢 Prakriti-AI Active`;
+      aiStatusIndicator.innerHTML = `<span class="pulse-dot"></span> 🟢 AYUSH KRITI Active`;
     } else if (state === 'listening') {
       aiStatusIndicator.classList.add('ai-status-listening');
       aiStatusIndicator.innerHTML = `<span class="pulse-dot"></span> 🎤 Listening...`;
@@ -57,12 +125,23 @@ document.addEventListener('DOMContentLoaded', () => {
       aiStatusIndicator.innerHTML = `<span class="pulse-dot"></span> ⏳ Processing...`;
     } else if (state === 'speaking') {
       aiStatusIndicator.classList.add('ai-status-speaking');
-      aiStatusIndicator.innerHTML = `<span class="pulse-dot"></span> 🔊 Prakriti-AI speaking...`;
+      aiStatusIndicator.innerHTML = `<span class="pulse-dot"></span> 🔊 AYUSH KRITI speaking...`;
     } else if (state === 'urgent') {
       aiStatusIndicator.classList.add('ai-status-urgent');
       aiStatusIndicator.innerHTML = `🔴 Emergency Triage Alert`;
     }
   }
+
+  // Listen to custom speaking state change events
+  window.addEventListener('ai-speaking-state-change', (e) => {
+    if (e.detail && e.detail.isSpeaking) {
+      setStatus('speaking');
+    } else {
+      if (aiStatusIndicator && aiStatusIndicator.classList.contains('ai-status-speaking')) {
+        setStatus('active');
+      }
+    }
+  });
 
   function appendMessage(sender, text) {
     const bubble = document.createElement('div');
@@ -75,28 +154,107 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const meta = document.createElement('div');
     meta.className = 'message-meta';
-    meta.textContent = `${sender === 'patient' ? 'Patient' : 'Prakriti-AI'} • ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    bubble.appendChild(meta);
 
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = `${sender === 'patient' ? 'Patient' : 'AYUSH KRITI'} • ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    meta.appendChild(labelSpan);
+
+    let speakerBtn = null;
+    if (sender === 'ai') {
+      speakerBtn = document.createElement('button');
+      speakerBtn.type = 'button';
+      speakerBtn.className = 'msg-speaker-btn';
+      speakerBtn.title = 'Listen / Replay response';
+      speakerBtn.innerHTML = '🔊 <span>Listen</span>';
+
+      speakerBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.isAISpeaking && speakerBtn.classList.contains('is-speaking')) {
+          // Stop / mute speech if currently speaking
+          window.stopAISpeech();
+          resetAllSpeakerButtons();
+          setStatus('active');
+        } else {
+          // Play or replay this specific message
+          window.stopAISpeech();
+          resetAllSpeakerButtons();
+          speakerBtn.classList.add('is-speaking');
+          speakerBtn.innerHTML = '⏹️ <span>Stop</span>';
+          speakerBtn.title = 'Stop reading aloud';
+
+          window.speakAIResponse(text, {
+            onStart: () => {
+              setStatus('speaking');
+            },
+            onEnd: () => {
+              speakerBtn.classList.remove('is-speaking');
+              speakerBtn.innerHTML = '🔊 <span>Listen</span>';
+              speakerBtn.title = 'Listen / Replay response';
+              setStatus('active');
+            },
+            onError: (err) => {
+              speakerBtn.classList.remove('is-speaking');
+              speakerBtn.innerHTML = '🔊 <span>Listen</span>';
+              speakerBtn.title = 'Listen / Replay response';
+              setStatus('active');
+            }
+          });
+        }
+      });
+      meta.appendChild(speakerBtn);
+    }
+
+    bubble.appendChild(meta);
     chatMessages.appendChild(bubble);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    // Trigger voice narration for AI messages
-    if (sender === 'ai' && window.enableVoiceNarration) {
-      speechEngine.speakText(
-        text,
-        bcp47,
-        () => setStatus('speaking'),
-        () => setStatus('active'),
-        () => setStatus('active')
-      );
-    } else if (sender === 'ai') {
-      setStatus('active');
+    // Trigger automated voice narration for new AI messages if Voice is ON
+    if (sender === 'ai') {
+      if (window.enableVoiceNarration && text && text !== lastAutoSpokenText) {
+        lastAutoSpokenText = text;
+        // Stop any previously playing speech
+        window.stopAISpeech();
+        resetAllSpeakerButtons();
+
+        if (speakerBtn) {
+          speakerBtn.classList.add('is-speaking');
+          speakerBtn.innerHTML = '⏹️ <span>Stop</span>';
+          speakerBtn.title = 'Stop reading aloud';
+        }
+
+        window.speakAIResponse(text, {
+          onStart: () => {
+            setStatus('speaking');
+          },
+          onEnd: () => {
+            if (speakerBtn) {
+              speakerBtn.classList.remove('is-speaking');
+              speakerBtn.innerHTML = '🔊 <span>Listen</span>';
+              speakerBtn.title = 'Listen / Replay response';
+            }
+            setStatus('active');
+          },
+          onError: (err) => {
+            if (speakerBtn) {
+              speakerBtn.classList.remove('is-speaking');
+              speakerBtn.innerHTML = '🔊 <span>Listen</span>';
+              speakerBtn.title = 'Listen / Replay response';
+            }
+            setStatus('active');
+          }
+        });
+      } else {
+        setStatus('active');
+      }
     }
   }
 
   async function sendToAI(messageText, isInitial = false) {
     if (!messageText.trim()) return;
+
+    // Cancel ongoing speech when sending an answer or new question
+    window.stopAISpeech();
+    resetAllSpeakerButtons();
 
     if (!isInitial) {
       appendMessage('patient', messageText);
@@ -133,7 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error('[Chat Error]', err);
       setStatus('urgent');
-      appendMessage('ai', 'Error communicating with Prakriti-AI service. Please try again.');
+      appendMessage('ai', 'Error communicating with AYUSH KRITI service. Please try again.');
     }
   }
 
@@ -156,6 +314,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Microphone Voice Input
   if (micBtn) {
     micBtn.addEventListener('click', () => {
+      // If AI is currently speaking, stop it immediately when user clicks mic
+      if (window.isAISpeaking) {
+        window.stopAISpeech();
+        resetAllSpeakerButtons();
+        setStatus('active');
+      }
+
       if (speechEngine.isListening) {
         speechEngine.stopListening();
         setStatus('active');
@@ -180,8 +345,8 @@ document.addEventListener('DOMContentLoaded', () => {
               if (!isListening && !speechEngine.isListening) {
                 // If not processing or speaking, return to active
                 if (!aiStatusIndicator.classList.contains('ai-status-processing') &&
-                    !aiStatusIndicator.classList.contains('ai-status-speaking') &&
-                    !aiStatusIndicator.classList.contains('ai-status-understanding')) {
+                  !aiStatusIndicator.classList.contains('ai-status-speaking') &&
+                  !aiStatusIndicator.classList.contains('ai-status-understanding')) {
                   setStatus('active');
                 }
               }

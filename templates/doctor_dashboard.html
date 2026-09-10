@@ -3,6 +3,28 @@
 {% block title %}Doctor Dashboard – Ministry of Ayush Smart MediKiosk{% endblock %}
 
 {% block content %}
+<!-- Doctor Navigation Bar -->
+<div class="doctor-nav-bar" style="background: #ffffff; border-radius: var(--radius-md); padding: 0.8rem 1.4rem; margin-bottom: 1.2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm); border: 1px solid var(--ayush-border); flex-wrap: wrap; gap: 1rem;">
+  <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+    <span style="font-weight: 800; color: var(--ayush-primary); font-size: 1.1rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+      👨‍⚕️ Dr. {{ doctor_name }} <span style="font-size: 0.8rem; background: #e2e8f0; color: #334155; padding: 0.15rem 0.5rem; border-radius: 4px;">{{ doctor_id }}</span>
+    </span>
+    <nav style="display: flex; gap: 0.5rem;">
+      <a href="/doctor" class="btn btn-primary" style="padding: 0.45rem 1rem; font-size: 0.9rem; text-decoration: none;">
+        🩺 Doctor Dashboard
+      </a>
+      <a href="/doctor/waiting-list" class="btn btn-secondary" style="padding: 0.45rem 1rem; font-size: 0.9rem; text-decoration: none;">
+        📋 Patient Waiting List
+      </a>
+    </nav>
+  </div>
+  <div style="display: flex; align-items: center; gap: 0.75rem;">
+    <a href="/doctor/logout" class="btn btn-secondary" style="padding: 0.45rem 0.9rem; font-size: 0.85rem; color: #b91c1c; border-color: #fca5a5; text-decoration: none;">
+      🚪 Logout
+    </a>
+  </div>
+</div>
+
 <!-- Doctor Consultation Hero Banner -->
 <div class="doctor-hero-banner">
   <div class="doctor-hero-content">
@@ -17,64 +39,48 @@
   </div>
 </div>
 
-<!-- Main Doctor Console Grid -->
+<!-- Main Doctor Console -->
 <div class="doctor-layout-grid">
   
-  <!-- Left Column: Patient Waiting Queue -->
-  <aside class="queue-panel">
-    <div class="queue-header">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--ayush-primary);">Patient Queue</h3>
-        <span class="kiosk-badge" style="background: #e2e8f0; color: #334155; font-size: 0.75rem;">LIVE</span>
-      </div>
-      <input 
-        type="text" 
-        id="patientSearchInput" 
-        class="queue-search-input" 
-        placeholder="🔍 Search ABHA, Name, Phone..." 
-      />
-    </div>
-
-    <div id="doctorQueueList" class="queue-list">
-      <!-- Queue Items populated dynamically by doctor.js -->
-      {% for p in queue %}
-        <div class="queue-item {% if p.priority_level == 'urgent' %}urgent{% endif %} {% if loop.first %}active{% endif %}" data-session-id="{{ p.session_id }}">
-          <div class="queue-item-header">
-            <span class="queue-token">{{ p.token_number }}</span>
-            {% if p.priority_level == 'urgent' %}
-              <span class="badge-urgent">🔴 URGENT</span>
-            {% elif p.status == 'verified' %}
-              <span class="badge-verified">✓ VERIFIED</span>
-            {% else %}
-              <span class="badge-normal">WAITING</span>
-            {% endif %}
-          </div>
-          <div class="queue-patient-name">{{ p.patient_name }}</div>
-          <div class="queue-meta">{{ p.age }}Y • {{ p.gender }} • ABHA: <code>{{ p.abha_id }}</code></div>
-          <div class="queue-meta" style="color: var(--ayush-primary); font-weight: 600;">{{ p.chief_complaint or 'Intake in progress' }}</div>
-        </div>
-      {% endfor %}
-    </div>
-  </aside>
-
-  <!-- Right Column: Clinical Console -->
-  <section class="clinical-console" id="clinicalConsole">
+  <!-- Clinical Console (Full-Width) -->
+  <section class="clinical-console" id="clinicalConsole" style="width: 100%;">
     
     <!-- Active Patient Header Banner -->
     <div style="padding: 1.2rem 1.8rem; background: #ffffff; border-bottom: 1px solid var(--ayush-border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
       <div>
-        <h3 id="patientHeaderName" style="font-size: 1.4rem; font-weight: 800; color: var(--ayush-primary);">Select a patient from the queue</h3>
-        <div style="display: flex; gap: 1rem; margin-top: 0.25rem;">
-          <span id="patientHeaderToken" class="meta-label" style="font-size: 0.85rem; color: #64748b;">Token: -</span>
+        <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+          <h3 id="patientHeaderName" style="font-size: 1.4rem; font-weight: 800; color: var(--ayush-primary); margin: 0;">Select a patient to begin consultation</h3>
+          <span id="patientRedFlagBadge" style="display: none; background: #fee2e2; border: 1px solid #f87171; color: #991b1b; padding: 0.25rem 0.65rem; border-radius: 4px; font-weight: 800; font-size: 0.8rem;">🔴 RED-FLAG ALERT</span>
+        </div>
+        <div style="display: flex; gap: 1rem; margin-top: 0.35rem; align-items: center; flex-wrap: wrap;">
+          <span id="patientHeaderToken" class="meta-label" style="font-size: 0.88rem; color: #0369a1; font-weight: 700; background: #e0f2fe; padding: 0.15rem 0.6rem; border-radius: 4px;">Token: -</span>
           <span id="patientHeaderAbha" class="meta-label" style="font-size: 0.85rem; color: #64748b;">ABHA: -</span>
+          <span id="patientHeaderComplaint" class="meta-label" style="font-size: 0.85rem; color: #334155; font-weight: 600;">Chief Complaint: -</span>
         </div>
       </div>
       <div style="display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap;">
+        <!-- Simple Navigation Option to Dedicated Waiting List -->
+        <a href="/doctor/waiting-list" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.5rem 1.1rem; display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none; font-weight: 700; color: var(--ayush-primary); border-color: var(--ayush-border);">
+          📋 View Patient Waiting List
+        </a>
+
+        <!-- Quick Patient Switcher -->
+        <div style="display: inline-flex; align-items: center; gap: 0.4rem;">
+          <select id="doctorPatientSelect" class="form-control" style="font-size: 0.88rem; padding: 0.45rem 0.75rem; min-width: 230px; font-weight: 600;">
+            <option value="">-- Choose Patient Case --</option>
+            {% for p in queue %}
+              <option value="{{ p.session_id }}" {% if (active_session_id and p.session_id == active_session_id) or (not active_session_id and loop.first) %}selected{% endif %}>
+                {{ p.token_number }} • {{ p.patient_name }} ({{ p.age }}Y/{{ p.gender }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
         <button type="button" id="printCaseSummaryBtn" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.45rem 1.1rem; display: inline-flex; align-items: center; gap: 0.4rem;">
-          🖨️ Print / Export Case Summary
+          🖨️ Print Summary
         </button>
-        <div style="background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.85rem; font-weight: 600;">
-          ⚠️ AI Generated – Requires Doctor Verification
+        <div style="background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 0.4rem 0.85rem; border-radius: 6px; font-size: 0.82rem; font-weight: 600;">
+          ⚠️ AI Generated – Requires Verification
         </div>
       </div>
     </div>
@@ -280,5 +286,8 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+  window.initialSessionId = {{ active_session_id or 'null' }};
+</script>
 <script src="/static/js/doctor.js"></script>
 {% endblock %}

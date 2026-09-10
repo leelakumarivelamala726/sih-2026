@@ -11,14 +11,14 @@
 </head>
 <body>
 
-  <!-- Official Government of India / Bharat / Ministry of Ayush Branding Area -->
+  <!-- Official Government of Bharat / Ministry of Ayush Branding Area -->
   <header class="gov-brand-bar">
     <div class="brand-left">
       <img src="/static/images/ayush_logo.png" alt="Ministry of Ayush Emblem" class="ayush-emblem-img">
       <div class="brand-titles">
-        <div style="font-size: 0.8rem; letter-spacing: 1px; color: #fde68a; font-weight: 700; text-transform: uppercase;">Government of India / Bharat</div>
+        <div style="font-size: 0.8rem; letter-spacing: 1px; color: #fde68a; font-weight: 700; text-transform: uppercase;">Government of Bharat</div>
         <h1>MINISTRY OF AYUSH</h1>
-        <p>SMART MEDIKIOSK • PRAKRITI-AI CLINICAL HISTORY PLATFORM</p>
+        <p>SMART MEDIKIOSK • AYUSH KRITI CLINICAL HISTORY PLATFORM</p>
       </div>
     </div>
     <div class="brand-right">
@@ -26,11 +26,26 @@
         <span class="pulse-dot"></span>
         <span>🟢 Kiosk Online</span>
       </div>
-      <a href="/doctor" class="portal-switch-btn">
-        <span>👨‍⚕️ Doctor Dashboard</span>
-      </a>
+      {% if session.get('doctor_logged_in') %}
+        <a href="/doctor" class="portal-switch-btn" style="text-decoration: none;">
+          <span>👨‍⚕️ Dashboard</span>
+        </a>
+        <a href="/doctor/waiting-list" class="portal-switch-btn" style="background: rgba(255,255,255,0.2); text-decoration: none;">
+          <span>📋 Waiting List</span>
+        </a>
+        <a href="/doctor/logout" class="btn btn-secondary" style="padding: 0.4rem 0.85rem; font-size: 0.82rem; text-decoration: none;">
+          Logout (Dr. {{ session.get('doctor_name', 'Doctor') }})
+        </a>
+      {% else %}
+        <a href="/doctor/login" class="portal-switch-btn" style="text-decoration: none;">
+          <span>👨‍⚕️ Doctor Login</span>
+        </a>
+        <a href="/doctor/register" class="portal-switch-btn" style="background: rgba(255,255,255,0.15); text-decoration: none;">
+          <span>📝 Doctor Register</span>
+        </a>
+      {% endif %}
       {% if session.get('session_id') %}
-        <a href="/logout" class="btn btn-secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Exit</a>
+        <a href="/logout" class="btn btn-secondary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem; text-decoration: none;">Exit Kiosk</a>
       {% endif %}
     </div>
   </header>
@@ -39,11 +54,13 @@
   <main class="main-container">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert-banner alert-{{ category }}">
-            <span>{{ message }}</span>
-          </div>
-        {% endfor %}
+        <div class="flash-messages" style="margin-bottom: 1.5rem;">
+          {% for category, message in messages %}
+            <div class="alert-banner alert-{{ category }}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
       {% endif %}
     {% endwith %}
 
@@ -51,9 +68,9 @@
   </main>
 
   <footer class="gov-footer">
-    <p>© 2026 Ministry of Ayush, Government of India / Bharat • Smart MediKiosk Clinical Assistant</p>
+    <p>© 2026 Ministry of Ayush, Government of Bharat • Smart MediKiosk Clinical Assistant</p>
     <p style="margin-top: 0.35rem; font-size: 0.75rem; color: #64748b;">
-      Prakriti-AI collects, structures, and summarizes clinical history. Final diagnosis and prescription remain solely with the qualified doctor.
+      AYUSH KRITI collects, structures, and summarizes clinical history. Final diagnosis and prescription remain solely with the qualified doctor.
     </p>
   </footer>
 

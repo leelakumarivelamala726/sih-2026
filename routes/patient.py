@@ -66,6 +66,14 @@ def prakriti_ai_kiosk(session_id):
         flash("Session not found.", "danger")
         return redirect(url_for('auth.login'))
 
+    # Update session status to AI Case Taking if currently Waiting
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE patient_sessions SET status = 'AI Case Taking' WHERE id = ? AND status = 'Waiting'",
+            (session_id,)
+        )
+        conn.commit()
+
     history = get_clinical_history(session_id) or {}
     bcp47 = get_bcp47_code(session_data.get('selected_language', 'en'))
 
@@ -84,6 +92,14 @@ def summary_preview(session_id):
     if not session_data:
         flash("Session not found.", "danger")
         return redirect(url_for('auth.login'))
+
+    # Mark session status as AI Completed (ready for doctor)
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE patient_sessions SET status = 'AI Completed' WHERE id = ? AND status IN ('Waiting', 'AI Case Taking')",
+            (session_id,)
+        )
+        conn.commit()
 
     # Generate or refresh AI clinical summary
     summary_result = generate_clinical_summary(session_id)

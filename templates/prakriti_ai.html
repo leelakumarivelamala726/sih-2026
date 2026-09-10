@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Prakriti-AI Case-Taking – Smart MediKiosk{% endblock %}
+{% block title %}AYUSH KRITI Case-Taking – Smart MediKiosk{% endblock %}
 
 {% block content %}
 <!-- Patient Info Banner -->
@@ -24,12 +24,15 @@
     </div>
   </div>
 
-  <div style="display: flex; align-items: center; gap: 1rem;">
+  <div style="display: flex; align-items: center; gap: 0.75rem;">
     <div class="token-badge-large">
       TOKEN: {{ session.token_number }}
     </div>
+    <button type="button" id="globalVoiceToggle" class="voice-global-toggle-btn voice-on" title="Toggle AI Voice Output">
+      🔊 Voice: ON
+    </button>
     <div id="aiStatusIndicator" class="ai-status-pill ai-status-active" style="display: none;">
-      <span class="pulse-dot"></span> 🟢 Prakriti-AI Active
+      <span class="pulse-dot"></span> 🟢 AYUSH KRITI Active
     </div>
   </div>
 </div>
@@ -37,10 +40,10 @@
 <!-- Welcome Screen (Before Clicking START) -->
 <div id="welcomeCard" class="prakriti-welcome-card">
   <div class="robot-avatar-wrapper">
-    <img src="/static/images/robot_avatar.png" alt="Prakriti-AI Robot Doctor" class="robot-avatar-img">
+    <img src="/static/images/robot_avatar.png" alt="AYUSH KRITI Robot Doctor" class="robot-avatar-img">
   </div>
   
-  <div class="assistant-badge">Prakriti-AI • Smart Clinical Assistant</div>
+  <div class="assistant-badge">AYUSH KRITI • Smart Clinical Assistant</div>
   <h2 style="font-size: 2.2rem; font-weight: 800; color: var(--ayush-primary); margin-bottom: 0.5rem;">
     "Your Assistant Doctor"
   </h2>
