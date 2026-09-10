@@ -23,6 +23,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  function switchTab(tabId) {
+    tabButtons.forEach(b => {
+      if (b.dataset.tab === tabId) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+    tabPanes.forEach(p => {
+      if (p.id === tabId) p.classList.add('active');
+      else p.classList.remove('active');
+    });
+  }
+
   // Quick Patient Switcher Event
   if (patientSelect) {
     patientSelect.addEventListener('change', (e) => {
@@ -34,7 +45,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Print Case Summary
+  // Doctor Quick Action Buttons
+  document.getElementById('actionViewSummaryBtn')?.addEventListener('click', () => {
+    switchTab('tabAiSummary');
+  });
+  document.getElementById('actionViewCaseBtn')?.addEventListener('click', () => {
+    switchTab('tabEditHistory');
+  });
+  document.getElementById('actionViewLabsBtn')?.addEventListener('click', () => {
+    switchTab('tabReports');
+  });
+  document.getElementById('actionPrintSummaryBtn')?.addEventListener('click', () => {
+    window.print();
+  });
+
+  // Print Case Summary (Header button)
   const printBtn = document.getElementById('printCaseSummaryBtn');
   if (printBtn) {
     printBtn.addEventListener('click', () => {
@@ -113,20 +138,8 @@ document.addEventListener('DOMContentLoaded', () => {
         patientSelect.value = sessionId;
       }
 
-      // Tab 1: AI Summary
-      let summaryText = '';
-      if (bundle.summary && bundle.summary.summary_text) {
-        summaryText = bundle.summary.summary_text;
-      } else if (bundle.summary && typeof bundle.summary === 'string') {
-        summaryText = bundle.summary;
-      }
-
-      if (summaryText && summaryText.trim()) {
-        if (summaryEl) summaryEl.innerHTML = renderMarkdown(summaryText);
-      } else {
-        // Fetch via dedicated AI summary endpoint if bundle summary is absent
-        await loadDedicatedAISummary(sessionId, forceRefresh);
-      }
+      // Tab 1: Prominent Clinical Summary (Medical Card Layout)
+      renderClinicalSummary(bundle, summaryEl);
 
       // Tab 2: Original Verbatim Transcripts
       const transcriptsContainer = document.getElementById('transcriptContent');
@@ -250,6 +263,363 @@ document.addEventListener('DOMContentLoaded', () => {
         loadDedicatedAISummary(sessionId, true);
       });
     }
+  }
+
+  function renderClinicalSummary(bundle, container) {
+    if (!container) return;
+    const cs = bundle.clinical_summary || {};
+    const sessionObj = bundle.session || {};
+    const historyObj = bundle.history || {};
+    const details = cs.structured_details || {};
+    const keyFindings = cs.key_findings || {};
+    const labs = bundle.lab_reports || bundle.labs || [];
+    const abnormalLabs = cs.abnormal_findings || labs.filter(l => l.abnormal_flag === 1);
+    const rxs = bundle.prescriptions || [];
+    const timeline = cs.timeline || bundle.timeline || [];
+    const actions = cs.recommended_actions || [
+      'Conduct focused physical examination and review vital parameters.',
+      'Correlate clinical findings with laboratory investigations.',
+      'Finalize prescription and verify case in Doctor Portal.'
+    ];
+
+    function getCleanVal(key, defaultVal = 'Not provided') {
+      const v = details[key] !== undefined ? details[key] : historyObj[key];
+      if (v === undefined || v === null) return defaultVal;
+      const s = String(v).trim();
+      if (!s || s.toLowerCase() === 'none' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined' || s.toLowerCase() === 'n/a' || s.toLowerCase() === 'nil' || s === '[]') {
+        return defaultVal;
+      }
+      return s;
+    }
+
+    function renderVal(v) {
+      const isMissing = !v || v === 'Not provided';
+      return `<span class="cs-field-val ${isMissing ? 'not-provided' : ''}">${escapeHtml(v)}</span>`;
+    }
+
+    // Patient Demographics
+    const pName = sessionObj.patient_name || details.patient_name || 'Patient';
+    const pAge = sessionObj.age || details.age || 'Not provided';
+    const pGender = sessionObj.gender || details.gender || 'Not provided';
+    const pAbha = sessionObj.abha_id || details.abha_id || 'Not provided';
+    const pPhone = sessionObj.phone_number || details.phone_number || 'Not provided';
+    const pToken = sessionObj.token_number || '-';
+    const pDate = sessionObj.session_date || 'Today';
+    const isUrgent = sessionObj.priority_level === 'urgent' || (keyFindings.risk_indicators && keyFindings.risk_indicators.includes('🔴'));
+
+    // Narrative paragraph (exact requested format)
+    const narrativeText = cs.clinical_summary_text || `Patient presents with ${getCleanVal('chief_complaints')} for ${getCleanVal('duration_of_symptoms')}. Relevant symptoms include ${getCleanVal('symptoms')}. Past history includes ${getCleanVal('past_medical_history')}. Current medications/allergies: Medications: ${getCleanVal('current_medications')}; Allergies: ${getCleanVal('allergies')}. Lifestyle and wellness indicators show Diet/Appetite: ${getCleanVal('diet_appetite')}; Sleep: ${getCleanVal('sleep_pattern')}; Bowel: ${getCleanVal('bowel_habits')}; Lifestyle: ${getCleanVal('lifestyle_information')}; Mental/Stress: ${getCleanVal('stress_mental_wellness')}. Laboratory/OCR findings indicate ${abnormalLabs.length > 0 ? `${abnormalLabs.length} abnormal lab parameter(s) identified.` : 'Not provided'}.`;
+
+    // Markdown summary text if available
+    let rawSummaryText = '';
+    if (bundle.summary && bundle.summary.summary_text) rawSummaryText = bundle.summary.summary_text;
+    else if (typeof bundle.summary === 'string') rawSummaryText = bundle.summary;
+
+    let html = `
+      <div class="cs-card-container">
+
+        <!-- Print Only Official Header -->
+        <div class="cs-print-header">
+          <h2 style="color: #0a4d2e; margin: 0; font-size: 1.6rem; font-weight: 800;">MINISTRY OF AYUSH • GOVERNMENT OF BHARAT</h2>
+          <p style="margin: 0.3rem 0 0 0; font-size: 0.95rem; font-weight: 700; color: #475569;">Smart MediKiosk Clinical History Platform • Clinical Case Summary Report</p>
+        </div>
+
+        <!-- 1. Patient Demographics & Identification -->
+        <div class="cs-demographics-card">
+          <div class="cs-demo-item">
+            <span class="cs-demo-label">Patient Name</span>
+            <span class="cs-demo-val">${escapeHtml(pName)}</span>
+          </div>
+          <div class="cs-demo-item">
+            <span class="cs-demo-label">Age / Gender</span>
+            <span class="cs-demo-val">${escapeHtml(String(pAge))}Y / ${escapeHtml(pGender)}</span>
+          </div>
+          <div class="cs-demo-item">
+            <span class="cs-demo-label">ABHA ID</span>
+            <span class="cs-demo-val"><code>${escapeHtml(pAbha)}</code></span>
+          </div>
+          <div class="cs-demo-item">
+            <span class="cs-demo-label">Phone Number</span>
+            <span class="cs-demo-val">${escapeHtml(pPhone)}</span>
+          </div>
+          <div class="cs-demo-item">
+            <span class="cs-demo-label">Token / Date</span>
+            <span class="cs-demo-val">${escapeHtml(pToken)} • <small style="font-size: 0.82rem; font-weight: 600;">${escapeHtml(pDate)}</small></span>
+          </div>
+          <div class="cs-demo-item">
+            <span class="cs-demo-label">Triage Priority</span>
+            <span class="cs-demo-val">${isUrgent ? '<span class="badge-urgent">🔴 URGENT</span>' : '<span class="badge-normal">🟢 Normal</span>'}</span>
+          </div>
+        </div>
+
+        <!-- 2. AI-Assisted Clinical Summary Narrative -->
+        <div class="cs-narrative-card">
+          <div class="cs-narrative-header">
+            <div class="cs-narrative-title">
+              <span>📋 CLINICAL SUMMARY</span>
+              <span style="font-size: 0.78rem; font-weight: 800; background: #dcfce7; color: #166534; padding: 0.2rem 0.65rem; border-radius: 12px;">AI-Assisted Draft</span>
+            </div>
+            <div style="font-size: 0.82rem; color: #166534; font-weight: 600;">
+              ℹ️ Synthesized from patient intake • Physician verification required
+            </div>
+          </div>
+          <div class="cs-narrative-text">
+            ${escapeHtml(narrativeText)}
+          </div>
+        </div>
+
+        <!-- 3. Key Clinical Findings Subsection -->
+        <div class="cs-key-findings-section">
+          <div class="cs-section-heading">
+            <span>🔍 Key Clinical Findings</span>
+          </div>
+          <div class="cs-findings-grid">
+            <div class="cs-finding-box">
+              <span class="cs-finding-label">Chief Complaint</span>
+              <span class="cs-finding-val" style="color: var(--ayush-primary); font-weight: 700;">${escapeHtml(keyFindings.chief_complaint || getCleanVal('chief_complaints'))}</span>
+            </div>
+            <div class="cs-finding-box">
+              <span class="cs-finding-label">Important Symptoms</span>
+              <span class="cs-finding-val">${escapeHtml(keyFindings.important_symptoms || getCleanVal('symptoms'))}</span>
+            </div>
+            <div class="cs-finding-box ${abnormalLabs.length > 0 ? 'urgent' : ''}">
+              <span class="cs-finding-label">Abnormal Lab Values</span>
+              <span class="cs-finding-val">
+                ${abnormalLabs.length > 0 
+                  ? abnormalLabs.map(l => `<span class="badge-abnormal-pill" style="margin: 0.15rem 0.25rem 0.15rem 0;">⚠️ ${escapeHtml(l.test_name)}: ${escapeHtml(String(l.value || l.test_value))} ${escapeHtml(l.unit || '')}</span>`).join('') 
+                  : '<span style="color: #166534; font-weight: 600;">✓ No abnormal parameters flagged</span>'}
+              </span>
+            </div>
+            <div class="cs-finding-box ${isUrgent ? 'urgent' : ''}">
+              <span class="cs-finding-label">Risk Indicators</span>
+              <span class="cs-finding-val" style="${isUrgent ? 'color: #991b1b; font-weight: 700;' : 'color: #15803d;'}">
+                ${escapeHtml(keyFindings.risk_indicators || (isUrgent ? '🔴 High Priority / Red-Flag Alert' : '🟢 Normal Clinical Priority'))}
+              </span>
+            </div>
+            <div class="cs-finding-box">
+              <span class="cs-finding-label">Relevant Medical History</span>
+              <span class="cs-finding-val">${escapeHtml(keyFindings.relevant_medical_history || getCleanVal('past_medical_history'))}</span>
+            </div>
+            <div class="cs-finding-box ${isUrgent ? 'urgent' : ''}">
+              <span class="cs-finding-label">AI-Detected Concerns</span>
+              <span class="cs-finding-val">
+                ${(keyFindings.ai_detected_concerns && keyFindings.ai_detected_concerns.length > 0)
+                  ? keyFindings.ai_detected_concerns.map(c => `<div>${escapeHtml(c)}</div>`).join('')
+                  : 'No urgent safety concerns detected.'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Detailed Structured Clinical Profile -->
+        <div class="cs-profile-grid">
+
+          <!-- Subsection: Complaints & Present Illness -->
+          <div class="cs-profile-card">
+            <h4 style="color: var(--ayush-primary); font-size: 1.02rem; font-weight: 800; margin-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.4rem;">
+              🩺 Complaints & Present Illness
+            </h4>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Chief Complaint:</span>
+              ${renderVal(getCleanVal('chief_complaints'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Symptoms:</span>
+              ${renderVal(getCleanVal('symptoms'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Duration:</span>
+              ${renderVal(getCleanVal('duration_of_symptoms'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Present Illness / HPI:</span>
+              ${renderVal(getCleanVal('present_illness_hpi'))}
+            </div>
+          </div>
+
+          <!-- Subsection: Medical, Family & Personal History -->
+          <div class="cs-profile-card">
+            <h4 style="color: var(--ayush-primary); font-size: 1.02rem; font-weight: 800; margin-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.4rem;">
+              📜 Medical & Family History
+            </h4>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Past Medical History:</span>
+              ${renderVal(getCleanVal('past_medical_history'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Past Surgical History:</span>
+              ${renderVal(getCleanVal('past_surgical_history'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Family History:</span>
+              ${renderVal(getCleanVal('family_history'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Personal History:</span>
+              ${renderVal(getCleanVal('personal_history'))}
+            </div>
+          </div>
+
+          <!-- Subsection: Medications, Allergies & Treatments -->
+          <div class="cs-profile-card">
+            <h4 style="color: var(--ayush-primary); font-size: 1.02rem; font-weight: 800; margin-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.4rem;">
+              💊 Medications & Allergies
+            </h4>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Current Medications:</span>
+              ${renderVal(getCleanVal('current_medications'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Known Allergies:</span>
+              ${renderVal(getCleanVal('allergies'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Previous Treatments:</span>
+              ${renderVal(getCleanVal('previous_treatments'))}
+            </div>
+          </div>
+
+          <!-- Subsection: Lifestyle & Wellness Indicators -->
+          <div class="cs-profile-card">
+            <h4 style="color: #166534; font-size: 1.02rem; font-weight: 800; margin-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.4rem;">
+              🌿 Lifestyle & Wellness Profile
+            </h4>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Lifestyle / Activity:</span>
+              ${renderVal(getCleanVal('lifestyle_information'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Sleep Pattern:</span>
+              ${renderVal(getCleanVal('sleep_pattern'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Diet & Appetite:</span>
+              ${renderVal(getCleanVal('diet_appetite'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Bowel Habits:</span>
+              ${renderVal(getCleanVal('bowel_habits'))}
+            </div>
+            <div class="cs-field-row">
+              <span class="cs-field-label">Stress / Mental Wellness:</span>
+              ${renderVal(getCleanVal('stress_mental_wellness'))}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 5. Uploaded Lab Reports / OCR Results & Abnormal Findings -->
+        <div class="cs-profile-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.4rem;">
+            <h4 style="color: var(--ayush-primary); font-size: 1.05rem; font-weight: 800; margin: 0;">
+              🧪 Uploaded Lab Reports / OCR Results & Abnormal Findings
+            </h4>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnSummaryToLabs" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; cursor: pointer;">
+              View Scanned Images ➔
+            </button>
+          </div>
+          ${labs.length > 0 ? `
+            <table class="cs-lab-summary-table">
+              <thead>
+                <tr>
+                  <th>Test Name</th>
+                  <th>Result Value</th>
+                  <th>Reference Range</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${labs.map(l => {
+                  const valStr = l.value !== undefined ? l.value : (l.test_value || 'Not provided');
+                  const isAb = l.abnormal_flag === 1;
+                  return `
+                    <tr style="${isAb ? 'background: #fff5f5;' : ''}">
+                      <td><strong>${escapeHtml(l.test_name || 'Lab Investigation')}</strong></td>
+                      <td><strong>${escapeHtml(String(valStr))} ${escapeHtml(l.unit || '')}</strong></td>
+                      <td>${escapeHtml(l.reference_range || 'Not provided')}</td>
+                      <td>${isAb ? '<span class="badge-abnormal-pill">⚠️ ABNORMAL</span>' : '<span class="badge-normal-pill">Normal</span>'}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          ` : '<p style="color: #94a3b8; font-style: italic; margin: 0.5rem 0;">No laboratory tests or documents uploaded for this case.</p>'}
+        </div>
+
+        <!-- 6. AI-Generated Case Insights & Recommended Follow-up / Next Clinical Action -->
+        <div class="cs-profile-card" style="background: #f8fafc; border-left: 4px solid var(--ayush-accent);">
+          <h4 style="color: var(--ayush-primary); font-size: 1.05rem; font-weight: 800; margin-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.4rem;">
+            💡 AI-Generated Case Insights & Recommended Follow-up
+          </h4>
+          <ul class="cs-action-list">
+            ${actions.map(act => `<li>${escapeHtml(act)}</li>`).join('')}
+          </ul>
+        </div>
+
+        <!-- 7. Clinical History / Timeline (Previous Visits - Latest First) -->
+        <div class="cs-profile-card">
+          <h4 style="color: var(--ayush-primary); font-size: 1.05rem; font-weight: 800; margin-bottom: 0.75rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.4rem;">
+            📅 Clinical History / Timeline (Chronological Previous Cases)
+          </h4>
+          ${timeline.length > 0 ? `
+            <table class="cs-lab-summary-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Complaint</th>
+                  <th>Assessment</th>
+                  <th>Treatment / Recommendation</th>
+                  <th>Follow-up</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${timeline.map(t => `
+                  <tr>
+                    <td><strong>${escapeHtml(t.date || '-')}</strong><br><small style="color: #64748b;">Token: ${escapeHtml(t.token_number || '')}</small></td>
+                    <td>${escapeHtml(t.complaint || 'Not provided')}</td>
+                    <td>${escapeHtml(t.assessment || 'Completed')}</td>
+                    <td>${escapeHtml(t.treatment || 'Evaluated')}</td>
+                    <td><span class="badge-normal-pill">${escapeHtml(t.status || 'Verified')}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p style="color: #94a3b8; font-style: italic; margin: 0.5rem 0;">Initial consultation at Smart MediKiosk. No previous visits recorded on file.</p>'}
+        </div>
+
+        ${rawSummaryText ? `
+          <!-- Collapsible Raw AI Markdown Summary -->
+          <details style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.75rem 1.2rem;">
+            <summary style="font-weight: 700; color: var(--ayush-primary); cursor: pointer; font-size: 0.92rem;">
+              📄 View Comprehensive AI Markdown Draft
+            </summary>
+            <div style="margin-top: 1rem; line-height: 1.7; font-size: 0.98rem;">
+              ${renderMarkdown(rawSummaryText)}
+            </div>
+          </details>
+        ` : ''}
+
+        <!-- Print Only Physician Signature Block -->
+        <div class="cs-print-signature-block">
+          <div>
+            <strong>Consulting Physician:</strong> Dr. Rohan Patel, MD (Ayush)<br>
+            <span style="font-size: 0.85rem; color: #64748b;">Doctor ID: DOC-AYUSH-01</span>
+          </div>
+          <div style="text-align: right;">
+            <strong>Physician Signature:</strong> ___________________________<br>
+            <span style="font-size: 0.85rem; color: #64748b;">Date: ${escapeHtml(pDate)}</span>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    container.innerHTML = html;
+
+    // Attach in-card jump button
+    document.getElementById('btnSummaryToLabs')?.addEventListener('click', () => {
+      switchTab('tabReports');
+    });
   }
 
   function renderReportsTab(bundle) {

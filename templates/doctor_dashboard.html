@@ -87,7 +87,7 @@
 
     <!-- Navigation Tabs -->
     <nav class="console-tabs-nav">
-      <button type="button" class="console-tab-btn active" data-tab="tabAiSummary">1. AI Summary</button>
+      <button type="button" class="console-tab-btn active" data-tab="tabAiSummary" title="Clinical Summary & AI Summary">1. Clinical Summary (AI Summary)</button>
       <button type="button" class="console-tab-btn" data-tab="tabTranscript">2. Original Transcript</button>
       <button type="button" class="console-tab-btn" data-tab="tabReports">3. Scanned Reports & Labs</button>
       <button type="button" class="console-tab-btn" data-tab="tabEditHistory">4. Editable Clinical History & AYUSH</button>
@@ -98,8 +98,30 @@
     <!-- Tab Panes Content -->
     <div class="console-tab-content">
       
-      <!-- Tab 1: AI Summary -->
+      <!-- Tab 1: Clinical Summary -->
       <div id="tabAiSummary" class="tab-pane active">
+        <!-- Doctor Quick Action Bar -->
+        <div class="clinical-action-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; flex-wrap: wrap; gap: 0.8rem; background: #f8fafc; padding: 0.75rem 1.2rem; border-radius: var(--radius-md); border: 1px solid var(--ayush-border);">
+          <div class="action-btn-group" style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+            <button type="button" class="action-pill-btn active" id="actionViewSummaryBtn" title="View formatted Clinical Summary">
+              📋 View Clinical Summary
+            </button>
+            <button type="button" class="action-pill-btn" id="actionViewCaseBtn" title="Jump to Full Clinical History & AYUSH Parameters">
+              📑 View Full Case
+            </button>
+            <button type="button" class="action-pill-btn" id="actionViewLabsBtn" title="Jump to Scanned Documents & Lab Reports">
+              🧪 View Lab Reports
+            </button>
+            <button type="button" class="action-pill-btn action-pill-print" id="actionPrintSummaryBtn" title="Print Clean Physician Clinical Summary">
+              🖨️ Print Clinical Summary
+            </button>
+          </div>
+          <div class="ai-safety-badge" style="display: inline-flex; align-items: center; gap: 0.4rem; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 0.35rem 0.8rem; border-radius: 20px; font-size: 0.82rem; font-weight: 700;">
+            <span class="pulse-dot"></span>
+            <span>AI Summary & Clinical Profile • Final Verification by Doctor</span>
+          </div>
+        </div>
+
         <div id="aiSummaryContent" style="line-height: 1.7; font-size: 1.05rem;">
           Loading clinical summary...
         </div>

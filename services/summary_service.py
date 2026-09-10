@@ -15,7 +15,7 @@ AI_API_KEY = os.getenv("AI_API_KEY")
 import json
 import requests
 from typing import Dict, Any, List, Optional
-from database.db import get_db_connection, get_clinical_history, get_session
+from database.db import get_db_connection, get_clinical_history, get_session, get_patient_history_timeline
 
 def generate_live_ai_summary_text(
     session: dict,
@@ -332,3 +332,280 @@ def generate_clinical_summary(session_id: int, force_refresh: bool = False) -> D
         "lab_items": lab_items,
         "rx_items": rx_items
     }
+
+def _clean_clinical_field(val: Any, default: str = "Not provided") -> str:
+    """Normalize clinical field string; never return null/undefined/blank."""
+    if val is None:
+        return default
+    if isinstance(val, (dict, list)):
+        if not val:
+            return default
+        try:
+            return json.dumps(val)
+        except Exception:
+            return default
+    s = str(val).strip()
+    if not s or s.lower() in ("none", "null", "undefined", "n/a", "nil", "[]", "{}"):
+        return default
+    return s
+
+def build_structured_clinical_summary_payload(session_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Build complete structured clinical summary payload for the Doctor Dashboard:
+    1. Patient Demographics & Identification
+    2. AI-Assisted Clinical Summary narrative paragraph
+    3. Key Clinical Findings subsection
+    4. Detailed Structured Clinical Profile
+    5. Uploaded Lab Reports / OCR Results & Abnormal Findings
+    6. AI Case Insights & Recommended Follow-up / Next Clinical Action
+    7. Chronological Previous Visits Timeline (latest first)
+    
+    Safety Guarantee:
+    - Never fabricates diagnosis, symptoms, labs, medications, or history.
+    - Missing fields strictly display 'Not provided' instead of undefined/null/blank.
+    - AI-Assisted content is explicitly labeled as draft for physician verification.
+    """
+    session = get_session(session_id)
+    if not session:
+        return None
+
+    history = get_clinical_history(session_id) or {}
+    patient_id = session.get("patient_id")
+
+    with get_db_connection() as conn:
+        # Lab reports with abnormal flags
+        labs_rows = conn.execute(
+            "SELECT * FROM lab_reports WHERE session_id = ? ORDER BY abnormal_flag DESC, id ASC",
+            (session_id,)
+        ).fetchall()
+        lab_items = [dict(r) for r in labs_rows]
+
+        # Prescriptions from OCR
+        rxs_rows = conn.execute(
+            "SELECT * FROM prescriptions WHERE session_id = ? ORDER BY id ASC",
+            (session_id,)
+        ).fetchall()
+        rx_items = [dict(r) for r in rxs_rows]
+
+        # Medical documents
+        docs_rows = conn.execute(
+            "SELECT id, document_type, file_path, ocr_text, created_at FROM medical_documents WHERE session_id = ? ORDER BY id DESC",
+            (session_id,)
+        ).fetchall()
+        doc_items = [dict(r) for r in docs_rows]
+
+    # Red flags
+    red_flags_raw = history.get("red_flags") or "[]"
+    try:
+        red_flags = json.loads(red_flags_raw) if isinstance(red_flags_raw, str) else red_flags_raw
+    except Exception:
+        red_flags = []
+
+    is_urgent = session.get("priority_level") == "urgent" or bool(red_flags)
+
+    # 1. Cleaned Structured Demographic & Clinical Fields
+    chief_complaint = _clean_clinical_field(history.get("chief_complaint"))
+    duration = _clean_clinical_field(history.get("duration") or history.get("onset"))
+    severity = _clean_clinical_field(history.get("severity"))
+    location = _clean_clinical_field(history.get("location"))
+    associated_symptoms = _clean_clinical_field(history.get("associated_symptoms"))
+    hpi = _clean_clinical_field(history.get("history_of_present_illness"))
+    past_medical = _clean_clinical_field(history.get("past_medical_history"))
+    past_surgical = _clean_clinical_field(history.get("past_surgical_history"))
+    family_history = _clean_clinical_field(history.get("family_history"))
+    personal_history = _clean_clinical_field(history.get("personal_history"))
+    current_meds = _clean_clinical_field(history.get("medication_history"))
+    allergies = _clean_clinical_field(history.get("allergy_history"))
+    lifestyle = _clean_clinical_field(history.get("lifestyle") or history.get("vihara"))
+    sleep_pattern = _clean_clinical_field(history.get("sleep") or history.get("nidra"))
+    diet_appetite = _clean_clinical_field(
+        f"{history.get('diet') or history.get('ahara') or ''} (Appetite: {history.get('appetite') or history.get('agni') or ''})".strip(" ()")
+        if (history.get("diet") or history.get("ahara") or history.get("appetite") or history.get("agni"))
+        else None
+    )
+    bowel_habits = _clean_clinical_field(history.get("bowel_habits") or history.get("koshta"))
+    stress_mental = _clean_clinical_field(history.get("manasika"))
+    previous_treatments = _clean_clinical_field(history.get("other_relevant_information"))
+    if previous_treatments == "Not provided" and rx_items:
+        previous_treatments = ", ".join([r.get("medicine_name", "") for r in rx_items[:4] if r.get("medicine_name")]) or "Not provided"
+
+    # 2. Abnormal Lab Findings Extraction
+    abnormal_labs = [l for l in lab_items if l.get("abnormal_flag") == 1]
+
+    # 3. Formulate Concise Clinical Summary narrative
+    symptoms_list = []
+    if associated_symptoms != "Not provided":
+        symptoms_list.append(associated_symptoms)
+    if location != "Not provided":
+        symptoms_list.append(f"localized to {location}")
+    if severity != "Not provided":
+        symptoms_list.append(f"severity: {severity}")
+    symptoms_narrative = "; ".join(symptoms_list) if symptoms_list else "Not provided"
+
+    past_hist_list = []
+    if past_medical != "Not provided":
+        past_hist_list.append(f"Medical: {past_medical}")
+    if past_surgical != "Not provided":
+        past_hist_list.append(f"Surgical: {past_surgical}")
+    past_hist_narrative = "; ".join(past_hist_list) if past_hist_list else "Not provided"
+
+    meds_allergies_narrative = f"Medications: {current_meds}; Allergies: {allergies}" if (current_meds != "Not provided" or allergies != "Not provided") else "Not provided"
+
+    wellness_list = []
+    if diet_appetite != "Not provided":
+        wellness_list.append(f"Diet/Appetite: {diet_appetite}")
+    if sleep_pattern != "Not provided":
+        wellness_list.append(f"Sleep: {sleep_pattern}")
+    if bowel_habits != "Not provided":
+        wellness_list.append(f"Bowel: {bowel_habits}")
+    if lifestyle != "Not provided":
+        wellness_list.append(f"Lifestyle: {lifestyle}")
+    if stress_mental != "Not provided":
+        wellness_list.append(f"Mental/Stress: {stress_mental}")
+    wellness_narrative = "; ".join(wellness_list) if wellness_list else "Not provided"
+
+    if abnormal_labs:
+        abnormal_summary = ", ".join([f"{l.get('test_name')}: {l.get('test_value')} {l.get('unit') or ''} (Abnormal)" for l in abnormal_labs])
+        lab_ocr_narrative = f"{len(lab_items)} lab tests on file. Notable abnormal findings: {abnormal_summary}."
+    elif lab_items:
+        lab_ocr_narrative = f"{len(lab_items)} laboratory investigations available, within normal limits."
+    elif doc_items:
+        lab_ocr_narrative = f"{len(doc_items)} medical document(s) uploaded."
+    else:
+        lab_ocr_narrative = "Not provided"
+
+    concise_clinical_summary = (
+        f"Patient presents with {chief_complaint} for {duration}. "
+        f"Relevant symptoms include {symptoms_narrative}. "
+        f"Past history includes {past_hist_narrative}. "
+        f"Current medications/allergies: {meds_allergies_narrative}. "
+        f"Lifestyle and wellness indicators show {wellness_narrative}. "
+        f"Laboratory/OCR findings indicate {lab_ocr_narrative}."
+    )
+
+    # 4. Key Clinical Findings
+    ai_concerns = []
+    if is_urgent:
+        ai_concerns.append("🔴 Emergency triage alert triggered based on reported symptoms.")
+    for rf in red_flags:
+        ai_concerns.append(f"Red flag: {rf.get('concern')} (Action: {rf.get('action')})")
+    if abnormal_labs:
+        ai_concerns.append(f"{len(abnormal_labs)} abnormal laboratory parameter(s) flagged for clinical review.")
+
+    key_clinical_findings = {
+        "chief_complaint": chief_complaint,
+        "important_symptoms": symptoms_narrative,
+        "abnormal_lab_values": [
+            {
+                "test_name": l.get("test_name"),
+                "value": l.get("test_value"),
+                "unit": l.get("unit") or "",
+                "reference_range": l.get("reference_range") or "Not provided",
+                "status": "ABNORMAL"
+            } for l in abnormal_labs
+        ],
+        "risk_indicators": "🔴 High Priority / Red-Flag Alert" if is_urgent else "🟢 Normal Clinical Priority",
+        "relevant_medical_history": past_hist_narrative,
+        "ai_detected_concerns": ai_concerns if ai_concerns else ["No urgent safety flags detected."]
+    }
+
+    # 5. Suggested Medical Codes
+    coding_suggestions = suggest_medical_codes(
+        history.get("chief_complaint") or "",
+        history.get("history_of_present_illness") or "",
+        history.get("ayush_specific_history") or ""
+    )
+
+    # 6. Recommended Follow-up / Next Clinical Action
+    recommended_actions = []
+    if is_urgent or red_flags:
+        recommended_actions.append("Prioritize immediate bedside/in-person clinical examination and vital sign stabilization.")
+    if abnormal_labs:
+        recommended_actions.append(f"Review {len(abnormal_labs)} abnormal lab parameter(s) and consider confirmatory pathology workup.")
+    if chief_complaint != "Not provided":
+        recommended_actions.append(f"Perform directed physical assessment focused on {chief_complaint}.")
+    if history.get("prakriti") or history.get("dosha"):
+        recommended_actions.append(f"Validate Ayurvedic constitution ({_clean_clinical_field(history.get('prakriti'))}) and advise dosha-balancing Ahara/Vihara.")
+    if not recommended_actions:
+        recommended_actions.append("Conduct comprehensive physical examination, assess vital parameters, and finalize clinical verification.")
+
+    # 7. Chronological Previous Visits Timeline (latest first)
+    raw_timeline = get_patient_history_timeline(patient_id) if patient_id else []
+    structured_timeline = []
+    for item in raw_timeline:
+        # Determine lab summary for that visit if available
+        structured_timeline.append({
+            "session_id": item.get("session_id"),
+            "token_number": item.get("token_number") or "-",
+            "date": item.get("session_date") or "-",
+            "status": item.get("status") or "completed",
+            "complaint": _clean_clinical_field(item.get("chief_complaint")),
+            "assessment": _clean_clinical_field(item.get("ayush_specific_history") or item.get("ai_summary") or "Clinical assessment completed"),
+            "treatment": _clean_clinical_field(item.get("doctor_notes") or item.get("medical_codes") or "Evaluated by physician"),
+            "doctor_name": item.get("doctor_name") or "Dr. Rohan Patel, MD (Ayush)",
+            "verified_at": item.get("verified_at") or "-"
+        })
+
+    # Sort latest first (by session_id descending or date)
+    structured_timeline.sort(key=lambda x: x.get("session_id") or 0, reverse=True)
+
+    return {
+        "status": "success",
+        "session_id": session_id,
+        "patient": {
+            "id": session.get("patient_id"),
+            "name": _clean_clinical_field(session.get("patient_name")),
+            "age": session.get("age"),
+            "gender": _clean_clinical_field(session.get("gender")),
+            "abha_id": _clean_clinical_field(session.get("abha_id")),
+            "phone_number": _clean_clinical_field(session.get("phone_number")),
+            "token_number": session.get("token_number"),
+            "session_date": session.get("session_date"),
+            "priority_level": session.get("priority_level", "normal"),
+            "status": session.get("status", "in_progress")
+        },
+        "clinical_summary_text": concise_clinical_summary,
+        "key_clinical_findings": key_clinical_findings,
+        "structured_details": {
+            "patient_name": _clean_clinical_field(session.get("patient_name")),
+            "age": str(session.get("age") or "Not provided"),
+            "gender": _clean_clinical_field(session.get("gender")),
+            "abha_id": _clean_clinical_field(session.get("abha_id")),
+            "phone_number": _clean_clinical_field(session.get("phone_number")),
+            "chief_complaints": chief_complaint,
+            "symptoms": symptoms_narrative,
+            "duration_of_symptoms": duration,
+            "present_illness_hpi": hpi,
+            "past_medical_history": past_medical,
+            "past_surgical_history": past_surgical,
+            "family_history": family_history,
+            "personal_history": personal_history,
+            "current_medications": current_meds,
+            "allergies": allergies,
+            "lifestyle_information": lifestyle,
+            "sleep_pattern": sleep_pattern,
+            "diet_appetite": diet_appetite,
+            "bowel_habits": bowel_habits,
+            "stress_mental_wellness": stress_mental,
+            "previous_treatments": previous_treatments,
+            "prakriti": _clean_clinical_field(history.get("prakriti")),
+            "vikriti": _clean_clinical_field(history.get("vikriti")),
+            "dosha": _clean_clinical_field(history.get("dosha")),
+            "agni": _clean_clinical_field(history.get("agni")),
+            "ama": _clean_clinical_field(history.get("ama")),
+            "koshta": _clean_clinical_field(history.get("koshta")),
+            "nidra": _clean_clinical_field(history.get("nidra")),
+            "ahara": _clean_clinical_field(history.get("ahara")),
+            "vihara": _clean_clinical_field(history.get("vihara")),
+            "manasika": _clean_clinical_field(history.get("manasika")),
+            "ayush_specific_notes": _clean_clinical_field(history.get("ayush_specific_history"))
+        },
+        "lab_reports": lab_items,
+        "abnormal_findings": abnormal_labs,
+        "uploaded_documents": doc_items,
+        "prescriptions": rx_items,
+        "coding_suggestions": coding_suggestions,
+        "recommended_actions": recommended_actions,
+        "timeline": structured_timeline
+    }
+

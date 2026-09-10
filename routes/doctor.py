@@ -21,7 +21,11 @@ from database.db import (
     verify_doctor_password,
     update_session_status
 )
-from services.summary_service import generate_clinical_summary, suggest_medical_codes
+from services.summary_service import (
+    generate_clinical_summary,
+    suggest_medical_codes,
+    build_structured_clinical_summary_payload
+)
 
 doctor_bp = Blueprint('doctor', __name__)
 
@@ -295,9 +299,12 @@ def patient_clinical_bundle(session_id):
         history.get('ayush_specific_history') or ''
     )
 
+    structured_summary = build_structured_clinical_summary_payload(session_id)
+
     return jsonify({
         "session": session_data,
         "summary": summary_data,
+        "clinical_summary": structured_summary,
         "history": history,
         "transcripts": transcripts,
         "documents": [dict(d) for d in docs],
@@ -308,6 +315,43 @@ def patient_clinical_bundle(session_id):
         "timeline": timeline,
         "previous_review": dict(review) if review else None
     })
+
+@doctor_bp.route('/api/doctor/patient/<int:patient_id>/clinical-summary', methods=['GET'])
+@doctor_required
+def get_patient_clinical_summary(patient_id):
+    """
+    Retrieve structured clinical summary for a patient:
+    Accepts optional ?session_id=<id> query parameter; otherwise selects the patient's latest session.
+    """
+    target_session_id = request.args.get('session_id')
+    if not target_session_id:
+        with get_db_connection() as conn:
+            row = conn.execute(
+                "SELECT id FROM patient_sessions WHERE patient_id = ? ORDER BY id DESC LIMIT 1",
+                (patient_id,)
+            ).fetchone()
+            if not row:
+                return jsonify({"error": f"No clinical session found for patient ID {patient_id}"}), 404
+            target_session_id = row['id']
+    else:
+        try:
+            target_session_id = int(target_session_id)
+        except ValueError:
+            return jsonify({"error": "Invalid session_id parameter"}), 400
+
+    summary_payload = build_structured_clinical_summary_payload(target_session_id)
+    if not summary_payload:
+        return jsonify({"error": f"Clinical summary not found for session {target_session_id}"}), 404
+    return jsonify(summary_payload)
+
+@doctor_bp.route('/api/doctor/session/<int:session_id>/clinical-summary', methods=['GET'])
+@doctor_required
+def get_session_clinical_summary(session_id):
+    """Retrieve structured clinical summary directly by session ID."""
+    summary_payload = build_structured_clinical_summary_payload(session_id)
+    if not summary_payload:
+        return jsonify({"error": f"Clinical summary not found for session {session_id}"}), 404
+    return jsonify(summary_payload)
 
 @doctor_bp.route('/api/doctor/summary/<int:session_id>', methods=['GET', 'POST'])
 @doctor_required

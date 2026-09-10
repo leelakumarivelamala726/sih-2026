@@ -409,5 +409,326 @@
   .clinical-table td {
     border: 1px solid #cbd5e1 !important;
   }
+
+  .clinical-action-bar,
+  .btn,
+  .portal-switch-btn,
+  #printCaseSummaryBtn,
+  .doctor-verify-card {
+    display: none !important;
+  }
+
+  .cs-print-header {
+    display: block !important;
+    text-align: center;
+    border-bottom: 2px solid #0a4d2e;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .cs-print-signature-block {
+    display: flex !important;
+    justify-content: space-between;
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid #cbd5e1;
+    page-break-inside: avoid;
+  }
 }
+
+/* --- Clinical Summary Medical-Card System Styles --- */
+.action-pill-btn {
+  background: #ffffff;
+  border: 1px solid var(--ayush-border);
+  color: var(--ayush-text-main);
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius-full);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.action-pill-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+.action-pill-btn.active {
+  background: var(--ayush-primary);
+  border-color: var(--ayush-primary);
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(10, 77, 46, 0.25);
+}
+
+.action-pill-print {
+  color: #0369a1;
+  border-color: #bae6fd;
+  background: #f0f9ff;
+}
+
+.action-pill-print:hover {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+/* Clinical Summary Container */
+.cs-card-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  color: var(--ayush-text-main);
+}
+
+/* Print Only Header */
+.cs-print-header {
+  display: none;
+}
+.cs-print-signature-block {
+  display: none;
+}
+
+/* Patient Demographics Card */
+.cs-demographics-card {
+  background: #ffffff;
+  border: 1.5px solid var(--ayush-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1rem;
+  align-items: center;
+  border-left: 5px solid var(--ayush-primary);
+}
+
+.cs-demo-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.cs-demo-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--ayush-text-muted);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.2rem;
+}
+
+.cs-demo-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ayush-primary);
+}
+
+.cs-demo-val code {
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+/* AI Narrative Card */
+.cs-narrative-card {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: var(--radius-md);
+  padding: 1.4rem 1.6rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.cs-narrative-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.cs-narrative-title {
+  color: #166534;
+  font-size: 1.15rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cs-narrative-text {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: #1e293b;
+}
+
+/* Key Clinical Findings Grid */
+.cs-key-findings-section {
+  background: #ffffff;
+  border: 1.5px solid var(--ayush-border);
+  border-radius: var(--radius-md);
+  padding: 1.4rem 1.6rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.cs-section-heading {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--ayush-primary);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 2px solid #f1f5f9;
+  padding-bottom: 0.5rem;
+}
+
+.cs-findings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.cs-finding-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  border-left: 4px solid #3b82f6;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.cs-finding-box.urgent {
+  background: #fff5f5;
+  border-color: #fca5a5;
+  border-left-color: #ef4444;
+}
+
+.cs-finding-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #475569;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.35rem;
+}
+
+.cs-finding-val {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.45;
+}
+
+/* Detailed Structured Profile Grid */
+.cs-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1.25rem;
+}
+
+.cs-profile-card {
+  background: #ffffff;
+  border: 1px solid var(--ayush-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem 1.4rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.cs-field-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.92rem;
+  gap: 1rem;
+}
+
+.cs-field-row:last-child {
+  border-bottom: none;
+}
+
+.cs-field-label {
+  font-weight: 700;
+  color: #475569;
+  min-width: 130px;
+}
+
+.cs-field-val {
+  font-weight: 600;
+  color: #0f172a;
+  text-align: right;
+  word-break: break-word;
+}
+
+.cs-field-val.not-provided {
+  color: #94a3b8;
+  font-weight: 500;
+  font-style: italic;
+}
+
+/* Timeline & Labs in Summary */
+.cs-lab-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+}
+
+.cs-lab-summary-table th,
+.cs-lab-summary-table td {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #e2e8f0;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.cs-lab-summary-table th {
+  background: #f8fafc;
+  font-weight: 700;
+  color: #334155;
+}
+
+.badge-abnormal-pill {
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.15rem 0.55rem;
+  border-radius: 12px;
+  border: 1px solid #fca5a5;
+  display: inline-block;
+}
+
+.badge-normal-pill {
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.55rem;
+  border-radius: 12px;
+  border: 1px solid #bbf7d0;
+  display: inline-block;
+}
+
+.cs-action-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.cs-action-list li {
+  margin-bottom: 0.45rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #1e293b;
+}
+
 
