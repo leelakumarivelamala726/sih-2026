@@ -1,8 +1,7 @@
 /**
  * Ministry of Ayush – Smart MediKiosk
  * Speech Recognition & Synthesis Service (Web Speech API)
- * Fully dynamic multilingual support: te-IN, hi-IN, ta-IN, kn-IN, ml-IN, mr-IN, bn-IN, gu-IN, pa-IN, or-IN, en-IN, etc.
- * Provides dynamic speakAIResponse(text, options) for automated AI voice conversation.
+ * Fully dynamic multilingual support with prioritized Telugu voice matching and safe platform synthesis.
  */
 
 let isSpeaking = false;
@@ -74,104 +73,168 @@ function isEnglishVoice(v) {
 }
 
 /**
- * Dynamic voice selection for any supported language:
- * Fallback Hierarchy:
- * 1. Exact selected locale match (e.g. te-IN) + High Quality
- * 2. Exact selected locale match (e.g. te-IN)
- * 3. Language family match (e.g. te) + High Quality
- * 4. Language family match (e.g. te)
- * 5. Compatible voice by name (e.g. contains "Telugu" or "తెలుగు")
- * 6. English safeguard: If target is English, strictly prioritize en-IN then en-US, never non-English.
- * 7. Non-English safeguard: If target is Telugu/Hindi/etc. and no specific voice is installed,
- *    returns null so the browser platform uses its native synthesis engine for that BCP-47 tag
- *    (NEVER forcing English on a Telugu/regional user).
+ * Find Telugu voice using required priority:
+ * 1. Exact te-IN
+ * 2. Any te-*
+ * 3. te
+ * 4. Voice name containing Telugu
+ * 5. If no Telugu voice object is available, return null
+ * (NEVER assign an English voice to a Telugu utterance)
  */
-function findBestVoiceForLanguage(targetLang, voicesList = null) {
-  if (!('speechSynthesis' in window)) return null;
-
-  const voices = voicesList || window.speechSynthesis.getVoices();
+function findTeluguVoice(voicesList = null) {
+  const voices = voicesList || (typeof window !== 'undefined' && window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
   if (!voices || voices.length === 0) return null;
-
-  const targetBcp47 = resolveBcp47(targetLang);
-  const targetNorm = targetBcp47.replace(/_/g, '-').toLowerCase();
-  const langPrefix = targetNorm.split('-')[0];
-
-  // Return from cache if already resolved (only when querying browser getVoices)
-  const useCache = !voicesList;
-  const cacheKey = `${targetNorm}_${voices.length}`;
-  if (useCache && voiceCache[cacheKey]) {
-    return voiceCache[cacheKey];
-  }
 
   const getNormLang = v => (v.lang || '').replace(/_/g, '-').toLowerCase();
 
-  // Special Handling for English
-  if (langPrefix === 'en') {
-    const englishVoices = voices.filter(isEnglishVoice);
-    if (englishVoices.length === 0) {
-      if (useCache) voiceCache[cacheKey] = null;
-      return null;
-    }
+  // 1. Exact te-IN (prefer High Quality)
+  const exactHq = voices.find(v => getNormLang(v) === 'te-in' && isHighQualityVoice(v));
+  if (exactHq) return exactHq;
+  const exact = voices.find(v => getNormLang(v) === 'te-in');
+  if (exact) return exact;
 
-    // 1. en-IN High Quality
-    const enInHq = englishVoices.find(v => getNormLang(v) === 'en-in' && isHighQualityVoice(v));
-    if (enInHq) { if (useCache) voiceCache[cacheKey] = enInHq; return enInHq; }
+  // 2. Any te-* (e.g. te-AP, te-TS)
+  const prefixHq = voices.find(v => getNormLang(v).startsWith('te-') && isHighQualityVoice(v));
+  if (prefixHq) return prefixHq;
+  const prefix = voices.find(v => getNormLang(v).startsWith('te-'));
+  if (prefix) return prefix;
 
-    // 2. en-IN Any
-    const enInAny = englishVoices.find(v => getNormLang(v) === 'en-in');
-    if (enInAny) { if (useCache) voiceCache[cacheKey] = enInAny; return enInAny; }
+  // 3. te
+  const langTe = voices.find(v => getNormLang(v) === 'te');
+  if (langTe) return langTe;
 
-    // 3. en-US High Quality
-    const enUsHq = englishVoices.find(v => getNormLang(v) === 'en-us' && isHighQualityVoice(v));
-    if (enUsHq) { if (useCache) voiceCache[cacheKey] = enUsHq; return enUsHq; }
+  // 4. Voice name containing Telugu
+  const nameTelugu = voices.find(v => {
+    const n = (v.name || '').toLowerCase();
+    return n.includes('telugu') || n.includes('తెలుగు');
+  });
+  if (nameTelugu) return nameTelugu;
 
-    // 4. en-US Any
-    const enUsAny = englishVoices.find(v => getNormLang(v) === 'en-us');
-    if (enUsAny) { if (useCache) voiceCache[cacheKey] = enUsAny; return enUsAny; }
+  // 5. No Telugu voice object available
+  return null;
+}
 
-    // 5. Any other English
-    const anyEnHq = englishVoices.find(isHighQualityVoice);
-    const selectedEn = anyEnHq || englishVoices[0];
-    if (useCache) voiceCache[cacheKey] = selectedEn;
-    return selectedEn;
-  }
+/**
+ * Find English voice prioritizing en-IN then en-US, rejecting non-English.
+ */
+function findEnglishVoice(voicesList = null) {
+  const voices = voicesList || (typeof window !== 'undefined' && window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
+  if (!voices || voices.length === 0) return null;
 
-  // Handling for Regional Indian Languages (te, hi, ta, kn, ml, mr, bn, gu, pa, or)
-  // Step 1: Exact locale match with high quality
+  const englishVoices = voices.filter(isEnglishVoice);
+  if (englishVoices.length === 0) return null;
+
+  const getNormLang = v => (v.lang || '').replace(/_/g, '-').toLowerCase();
+
+  // 1. en-IN High Quality
+  const enInHq = englishVoices.find(v => getNormLang(v) === 'en-in' && isHighQualityVoice(v));
+  if (enInHq) return enInHq;
+  const enInAny = englishVoices.find(v => getNormLang(v) === 'en-in');
+  if (enInAny) return enInAny;
+
+  // 2. en-US High Quality
+  const enUsHq = englishVoices.find(v => getNormLang(v) === 'en-us' && isHighQualityVoice(v));
+  if (enUsHq) return enUsHq;
+  const enUsAny = englishVoices.find(v => getNormLang(v) === 'en-us');
+  if (enUsAny) return enUsAny;
+
+  // 3. Any other English
+  const anyEnHq = englishVoices.find(isHighQualityVoice);
+  return anyEnHq || englishVoices[0];
+}
+
+/**
+ * Find regional Indian voice (Hindi, Tamil, etc.).
+ */
+function findRegionalVoice(langPrefix, targetNorm, voicesList = null) {
+  const voices = voicesList || (typeof window !== 'undefined' && window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
+  if (!voices || voices.length === 0) return null;
+
+  const getNormLang = v => (v.lang || '').replace(/_/g, '-').toLowerCase();
+
   const exactHq = voices.find(v => getNormLang(v) === targetNorm && isHighQualityVoice(v));
-  if (exactHq) { if (useCache) voiceCache[cacheKey] = exactHq; return exactHq; }
-
-  // Step 2: Exact locale match any
+  if (exactHq) return exactHq;
   const exactAny = voices.find(v => getNormLang(v) === targetNorm);
-  if (exactAny) { if (useCache) voiceCache[cacheKey] = exactAny; return exactAny; }
+  if (exactAny) return exactAny;
 
-  // Step 3: Language family match with high quality (e.g. te or te-*)
-  const familyHq = voices.find(v => {
-    const vl = getNormLang(v);
-    return (vl.startsWith(`${langPrefix}-`) || vl === langPrefix) && isHighQualityVoice(v);
-  });
-  if (familyHq) { if (useCache) voiceCache[cacheKey] = familyHq; return familyHq; }
+  const familyHq = voices.find(v => (getNormLang(v).startsWith(`${langPrefix}-`) || getNormLang(v) === langPrefix) && isHighQualityVoice(v));
+  if (familyHq) return familyHq;
+  const familyAny = voices.find(v => getNormLang(v).startsWith(`${langPrefix}-`) || getNormLang(v) === langPrefix);
+  if (familyAny) return familyAny;
 
-  // Step 4: Language family match any
-  const familyAny = voices.find(v => {
-    const vl = getNormLang(v);
-    return vl.startsWith(`${langPrefix}-`) || vl === langPrefix;
-  });
-  if (familyAny) { if (useCache) voiceCache[cacheKey] = familyAny; return familyAny; }
-
-  // Step 5: Match by language name keywords
   const keywords = REGIONAL_VOICE_KEYWORDS[langPrefix] || [langPrefix];
   const nameMatch = voices.find(v => {
     const nameLower = (v.name || '').toLowerCase();
     return keywords.some(k => nameLower.includes(k.toLowerCase()));
   });
-  if (nameMatch) { if (useCache) voiceCache[cacheKey] = nameMatch; return nameMatch; }
+  if (nameMatch) return nameMatch;
 
-  // Step 6: Non-English requested but no specific voice object found in getVoices().
-  // Return null so the browser platform routes utterance.lang = targetBcp47 to native synthesizer.
-  // We NEVER set an English voice for Telugu/regional text!
-  if (useCache) voiceCache[cacheKey] = null;
   return null;
+}
+
+/**
+ * Dynamic voice selection for any supported language.
+ */
+function findBestVoiceForLanguage(targetLang, voicesList = null) {
+  if (!('speechSynthesis' in window)) return null;
+
+  const bcp47 = resolveBcp47(targetLang);
+  const targetNorm = bcp47.replace(/_/g, '-').toLowerCase();
+  const langPrefix = targetNorm.split('-')[0];
+
+  const useCache = !voicesList;
+  const voices = voicesList || window.speechSynthesis.getVoices();
+  const cacheKey = `${targetNorm}_${voices.length}`;
+  if (useCache && voiceCache[cacheKey] !== undefined) {
+    return voiceCache[cacheKey];
+  }
+
+  let selected = null;
+  if (langPrefix === 'te') {
+    selected = findTeluguVoice(voices);
+  } else if (langPrefix === 'en') {
+    selected = findEnglishVoice(voices);
+  } else {
+    selected = findRegionalVoice(langPrefix, targetNorm, voices);
+  }
+
+  if (useCache) {
+    voiceCache[cacheKey] = selected;
+  }
+  return selected;
+}
+
+/**
+ * Asynchronously wait for voices to load if getVoices() is initially empty.
+ */
+function waitForVoices(timeoutMs = 600) {
+  return new Promise((resolve) => {
+    if (!('speechSynthesis' in window)) return resolve([]);
+    const current = window.speechSynthesis.getVoices();
+    if (current && current.length > 0) return resolve(current);
+
+    let done = false;
+    const finish = (v) => {
+      if (!done) {
+        done = true;
+        resolve(v || window.speechSynthesis.getVoices() || []);
+      }
+    };
+
+    const timer = setTimeout(() => finish([]), timeoutMs);
+
+    const handler = () => {
+      clearTimeout(timer);
+      const v = window.speechSynthesis.getVoices();
+      if (v && v.length > 0) finish(v);
+    };
+
+    if (typeof window.speechSynthesis.addEventListener === 'function') {
+      window.speechSynthesis.addEventListener('voiceschanged', handler, { once: true });
+    } else {
+      window.speechSynthesis.onvoiceschanged = handler;
+    }
+  });
 }
 
 /**
@@ -219,13 +282,9 @@ function setSessionLanguage(langCode, bcp47Code = null) {
   window.currentAppLanguage = normCode;
   window.currentBcp47 = normBcp47;
 
-  // Stop active speech immediately
   stopAISpeech();
-
-  // Clear cache for fresh voice resolution
   voiceCache = {};
 
-  // Update speech recognition engine language
   if (window.prakritiSpeechEngineInstance) {
     window.prakritiSpeechEngineInstance.setLanguage(normBcp47);
   }
@@ -252,10 +311,6 @@ function speakAIResponse(text, optionsOrCallbacks = {}) {
     return false;
   }
 
-  // 1. Cancel previous speech immediately
-  window.speechSynthesis.cancel();
-  setAISpeakingState(false);
-
   if (!text || !text.trim()) return false;
 
   const cb = typeof optionsOrCallbacks === 'function' ? { onEnd: optionsOrCallbacks } : (optionsOrCallbacks || {});
@@ -264,7 +319,7 @@ function speakAIResponse(text, optionsOrCallbacks = {}) {
   const rawLang = cb.lang || window.currentBcp47 || window.currentAppLanguage || 'en-IN';
   const targetBcp47 = resolveBcp47(rawLang);
 
-  // 2. Clean formatted text for natural pronunciation while PRESERVING Telugu & Indian Unicode
+  // Clean formatted text while STRICTLY preserving Telugu & Indian Unicode characters
   const cleanText = text
     .replace(/[#*`_~]/g, '')
     .replace(/⚠️/g, ' ')
@@ -275,28 +330,75 @@ function speakAIResponse(text, optionsOrCallbacks = {}) {
 
   if (!cleanText) return false;
 
+  // Handle getVoices() loading asynchronously if initially empty
+  const voicesNow = window.speechSynthesis.getVoices();
+  if (!voicesNow || voicesNow.length === 0) {
+    waitForVoices(500).then(() => {
+      executeSpeechUtterance(cleanText, targetBcp47, cb);
+    });
+    return true;
+  }
+
+  return executeSpeechUtterance(cleanText, targetBcp47, cb);
+}
+
+/**
+ * Internal execution of speech utterance with Chromium cancellation safety and status updates.
+ */
+function executeSpeechUtterance(cleanText, targetBcp47, cb) {
+  let wasCanceling = false;
   try {
-    // 3. Create SpeechSynthesisUtterance with target language
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+      window.speechSynthesis.cancel();
+      wasCanceling = true;
+    }
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+  } catch (e) {}
+
+  setAISpeakingState(false);
+
+  try {
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = targetBcp47;
     utterance.rate = 0.95; // Calm, empathetic clinical cadence
     utterance.pitch = 1.0;
 
-    // 4. Select the best available voice for this specific language
+    const langPrefix = targetBcp47.split('-')[0].toLowerCase();
     const voice = findBestVoiceForLanguage(targetBcp47);
-    if (voice) {
-      utterance.voice = voice;
-      if (voice.lang) {
-        utterance.lang = voice.lang;
+
+    if (langPrefix === 'te') {
+      if (voice) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang || 'te-IN';
+        console.log(`[TTS] Speaking Telugu using voice: "${voice.name}" (${voice.lang})`);
+        window._teluguVoiceStatus = { installed: true, voiceName: voice.name, lang: voice.lang };
+      } else {
+        // No Telugu voice object in getVoices() -> use platform synthesis with te-IN
+        utterance.voice = null;
+        utterance.lang = 'te-IN';
+        console.info('[TTS] No dedicated Telugu voice in browser getVoices(). Using platform synthesis (utterance.lang = "te-IN", voice = null).');
+        window._teluguVoiceStatus = { installed: false, voiceName: null, lang: 'te-IN' };
+      }
+    } else if (langPrefix === 'en') {
+      if (voice && isEnglishVoice(voice)) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang || 'en-IN';
+      } else {
+        utterance.voice = null;
+        utterance.lang = 'en-IN';
       }
     } else {
-      // Safe fallback: No voice object in getVoices(), but set utterance.lang so
-      // browser platform synthesizer synthesizes in the requested regional language.
-      utterance.voice = null;
-      utterance.lang = targetBcp47;
+      if (voice) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang || targetBcp47;
+      } else {
+        utterance.voice = null;
+        utterance.lang = targetBcp47;
+      }
     }
 
-    // 5. Expose speaking state
     utterance.onstart = () => {
       setAISpeakingState(true);
       if (cb.onStart) cb.onStart();
@@ -309,7 +411,6 @@ function speakAIResponse(text, optionsOrCallbacks = {}) {
     };
 
     utterance.onerror = (e) => {
-      // Normal cancellations / interruptions are not treated as true errors
       if (e.error !== 'canceled' && e.error !== 'interrupted') {
         console.warn(`[TTS Speech Error for ${targetBcp47}]`, e.error || e);
       }
@@ -322,8 +423,24 @@ function speakAIResponse(text, optionsOrCallbacks = {}) {
     // Retain global reference against Chromium garbage collection bug
     window._activePrakritiUtterance = utterance;
 
-    // 6. Speak the AI response
-    window.speechSynthesis.speak(utterance);
+    const doSpeak = () => {
+      try {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn('[TTS Speak Error]', err);
+        setAISpeakingState(false);
+        if (cb.onError) cb.onError(err);
+      }
+    };
+
+    if (wasCanceling) {
+      setTimeout(doSpeak, 20);
+    } else {
+      doSpeak();
+    }
     return true;
   } catch (err) {
     console.warn('[TTS Execution Error]', err);
@@ -348,6 +465,7 @@ function stopAISpeech() {
 window.speakAIResponse = speakAIResponse;
 window.stopAISpeech = stopAISpeech;
 window.findBestVoiceForLanguage = findBestVoiceForLanguage;
+window.findTeluguVoice = findTeluguVoice;
 window.loadPreferredEnglishVoice = loadPreferredEnglishVoice;
 window.isEnglishVoice = isEnglishVoice;
 window.resolveBcp47 = resolveBcp47;
@@ -420,7 +538,6 @@ class PrakritiSpeechEngine {
   }
 
   startListening(onTranscript, onStatusChange) {
-    // If AI is currently speaking, stop speech before listening
     if (window.isAISpeaking) {
       stopAISpeech();
     }

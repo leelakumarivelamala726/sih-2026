@@ -4,7 +4,7 @@
  * Integrates automated multilingual Text-to-Speech (TTS) and Speech-to-Text (STT) voice conversation.
  */
 
-document.addEventListener('DOMContentLoaded', () => {
+function initKioskChat() {
   const welcomeCard = document.getElementById('welcomeCard');
   const chatInterface = document.getElementById('chatInterface');
   const startBtn = document.getElementById('startKioskBtn');
@@ -402,4 +402,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-});
+}
+
+// Ensure execution whether DOM is loading or already ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initKioskChat);
+} else {
+  initKioskChat();
+}
