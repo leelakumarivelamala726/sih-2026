@@ -99,9 +99,9 @@ function initKioskChat() {
   // Handle Dynamic Language Switching during Consultation
   if (sessionLanguageSelect) {
     sessionLanguageSelect.addEventListener('change', async (e) => {
-      const selectedOption = sessionLanguageSelect.options[sessionLanguageSelect.selectedIndex];
-      const newLang = selectedOption.value;
-      const newBcp47 = selectedOption.getAttribute('data-bcp47') || (window.resolveBcp47 ? window.resolveBcp47(newLang) : `${newLang}-IN`);
+      const newLang = sessionLanguageSelect.value || (sessionLanguageSelect.selectedIndex >= 0 ? sessionLanguageSelect.options[sessionLanguageSelect.selectedIndex]?.value : 'en');
+      const opt = sessionLanguageSelect.querySelector(`option[value="${newLang}"]`) || (sessionLanguageSelect.selectedIndex >= 0 ? sessionLanguageSelect.options[sessionLanguageSelect.selectedIndex] : null);
+      const newBcp47 = (opt && opt.getAttribute('data-bcp47')) || (window.resolveBcp47 ? window.resolveBcp47(newLang) : `${newLang}-IN`);
 
       language = newLang;
       bcp47 = newBcp47;
