@@ -41,6 +41,30 @@
   color: var(--ayush-text-main);
 }
 
+.meta-language-select {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ayush-primary);
+  background: #ffffff;
+  border: 1.5px solid var(--ayush-border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  transition: var(--transition);
+  outline: none;
+}
+
+.meta-language-select:hover {
+  border-color: var(--ayush-primary);
+  background: #f0fdf4;
+}
+
+.meta-language-select:focus {
+  border-color: var(--ayush-primary);
+  box-shadow: 0 0 0 3px rgba(10, 77, 46, 0.15);
+}
+
 .token-badge-large {
   background: var(--ayush-primary);
   color: #ffffff;

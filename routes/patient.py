@@ -143,3 +143,33 @@ def patient_timeline(patient_id):
     timeline = get_patient_history_timeline(patient_id)
     return render_template('timeline.html', timeline=timeline)
 
+@patient_bp.route('/api/patient/change-language/<int:session_id>', methods=['POST'])
+def change_patient_language(session_id):
+    """Dynamically update patient session language during consultation."""
+    data = request.get_json() or {}
+    new_lang = data.get('language', '').strip()
+
+    if not new_lang or new_lang not in SUPPORTED_LANGUAGES:
+        return jsonify({"error": "Unsupported or missing language code"}), 400
+
+    session_data = get_session(session_id)
+    if not session_data:
+        return jsonify({"error": "Session not found"}), 404
+
+    bcp47 = get_bcp47_code(new_lang)
+
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE patient_sessions SET selected_language = ? WHERE id = ?",
+            (new_lang, session_id)
+        )
+        conn.commit()
+
+    return jsonify({
+        "status": "success",
+        "session_id": session_id,
+        "language": new_lang,
+        "bcp47": bcp47,
+        "language_name": SUPPORTED_LANGUAGES[new_lang]["name"]
+    })
+

@@ -1,7 +1,7 @@
 /**
  * Ministry of Ayush – Smart MediKiosk
  * AYUSH KRITI Interactive Case-Taking Dialogue
- * Integrates automated Text-to-Speech (TTS) and Speech-to-Text (STT) voice conversation
+ * Integrates automated multilingual Text-to-Speech (TTS) and Speech-to-Text (STT) voice conversation.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,12 +17,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const scanLinkBtn = document.getElementById('scanLinkBtn');
   const globalVoiceToggle = document.getElementById('globalVoiceToggle');
   const voiceNarrationToggle = document.getElementById('voiceNarrationToggle');
+  const sessionLanguageSelect = document.getElementById('sessionLanguageSelect');
 
   if (!chatInterface) return;
 
   const sessionId = chatInterface.dataset.sessionId;
-  const language = chatInterface.dataset.language || 'en';
-  const bcp47 = chatInterface.dataset.bcp47 || 'en-IN';
+  let language = chatInterface.dataset.language || 'en';
+  let bcp47 = chatInterface.dataset.bcp47 || (window.resolveBcp47 ? window.resolveBcp47(language) : 'en-IN');
+
+  // Synchronize global language state across TTS and STT
+  if (window.setSessionLanguage) {
+    window.setSessionLanguage(language, bcp47);
+  }
 
   const speechEngine = new window.PrakritiSpeechEngine(bcp47);
 
@@ -87,6 +93,44 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.classList.remove('is-speaking');
       btn.innerHTML = '🔊 <span>Listen</span>';
       btn.title = 'Listen / Replay response';
+    });
+  }
+
+  // Handle Dynamic Language Switching during Consultation
+  if (sessionLanguageSelect) {
+    sessionLanguageSelect.addEventListener('change', async (e) => {
+      const selectedOption = sessionLanguageSelect.options[sessionLanguageSelect.selectedIndex];
+      const newLang = selectedOption.value;
+      const newBcp47 = selectedOption.getAttribute('data-bcp47') || (window.resolveBcp47 ? window.resolveBcp47(newLang) : `${newLang}-IN`);
+
+      language = newLang;
+      bcp47 = newBcp47;
+      chatInterface.dataset.language = newLang;
+      chatInterface.dataset.bcp47 = newBcp47;
+
+      // Immediately cancel playing speech and update engines
+      window.stopAISpeech();
+      resetAllSpeakerButtons();
+      setStatus('active');
+
+      if (window.setSessionLanguage) {
+        window.setSessionLanguage(newLang, newBcp47);
+      }
+      speechEngine.setLanguage(newBcp47);
+
+      // Reset auto-spoken cache so new questions in the new language speak cleanly
+      lastAutoSpokenText = '';
+
+      // Update session language in backend database asynchronously
+      try {
+        await fetch(`/api/patient/change-language/${sessionId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ language: newLang })
+        });
+      } catch (err) {
+        console.warn('[Language Switch Sync Error]', err);
+      }
     });
   }
 
@@ -175,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
           resetAllSpeakerButtons();
           setStatus('active');
         } else {
-          // Play or replay this specific message
+          // Play or replay this specific message in current language
           window.stopAISpeech();
           resetAllSpeakerButtons();
           speakerBtn.classList.add('is-speaking');
@@ -183,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
           speakerBtn.title = 'Stop reading aloud';
 
           window.speakAIResponse(text, {
+            lang: bcp47,
             onStart: () => {
               setStatus('speaking');
             },
@@ -223,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         window.speakAIResponse(text, {
+          lang: bcp47,
           onStart: () => {
             setStatus('speaking');
           },
@@ -357,4 +403,3 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-

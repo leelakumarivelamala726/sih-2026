@@ -19,8 +19,14 @@
       <span class="meta-value"><code>{{ session.abha_id }}</code></span>
     </div>
     <div class="meta-item">
-      <span class="meta-label">Language</span>
-      <span class="meta-value">{{ languages[session.selected_language].name }}</span>
+      <label for="sessionLanguageSelect" class="meta-label">Language</label>
+      <select id="sessionLanguageSelect" class="meta-language-select" title="Change Consultation Language">
+        {% for code, lang in languages.items() %}
+          <option value="{{ code }}" data-bcp47="{{ lang.bcp47 }}" {% if session.selected_language == code %}selected{% endif %}>
+            {{ lang.name }}
+          </option>
+        {% endfor %}
+      </select>
     </div>
   </div>
 
